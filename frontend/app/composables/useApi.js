@@ -4,6 +4,12 @@ export const useApi = () => {
   const contacts = useState('contacts', () => [])
   const templates = useState('templates', () => [])
   const schedule = useState('schedule', () => [])
+  const sequences = useState('sequences', () => [])
+  const settings = useState('settings', () => ({
+    gmail: { email: '', app_password: '' },
+    codementor: { access_token: '', refresh_token: '' },
+    automation: { enabled: false, check_interval: 15, max_retries: 3, timezone: 'UTC' }
+  }))
   const isLoading = useState('isLoading', () => false)
   const error = useState('error', () => null)
 
@@ -99,6 +105,38 @@ export const useApi = () => {
     }
   }
 
+  // Load sequences
+  const loadSequences = async () => {
+    isLoading.value = true
+    try {
+      const data = await apiCall('/sequences')
+      sequences.value = data
+      return data
+    } catch (error) {
+      console.error('Error loading sequences:', error)
+      error.value = error.message
+      return []
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  // Load settings
+  const loadSettings = async () => {
+    isLoading.value = true
+    try {
+      const data = await apiCall('/settings')
+      settings.value = data
+      return data
+    } catch (error) {
+      console.error('Error loading settings:', error)
+      error.value = error.message
+      return settings.value // Return current settings on error
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   // Create contact
   const createContact = async (contactData) => {
     try {
@@ -184,6 +222,43 @@ export const useApi = () => {
     }
   }
 
+  // Create sequence
+  const createSequence = async (sequenceData) => {
+    try {
+      const result = await apiCall('/sequences', {
+        method: 'POST',
+        body: JSON.stringify(sequenceData)
+      })
+      return result
+    } catch (error) {
+      console.error('Error creating sequence:', error)
+      throw error
+    }
+  }
+
+  // Update sequence
+  const updateSequence = async (id, sequenceData) => {
+    try {
+      await apiCall(`/sequences/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(sequenceData)
+      })
+    } catch (error) {
+      console.error('Error updating sequence:', error)
+      throw error
+    }
+  }
+
+  // Delete sequence
+  const deleteSequence = async (id) => {
+    try {
+      await apiCall(`/sequences/${id}`, { method: 'DELETE' })
+    } catch (error) {
+      console.error('Error deleting sequence:', error)
+      throw error
+    }
+  }
+
   // Initialize all data on app startup
   const initializeApp = async () => {
     console.log('🚀 Initializing Followupper app...')
@@ -193,7 +268,9 @@ export const useApi = () => {
       await Promise.all([
         loadContacts(),
         loadTemplates(),
-        loadSchedule()
+        loadSchedule(),
+        loadSequences(),
+        loadSettings()
       ])
       console.log('✅ App initialized successfully')
     } catch (error) {
@@ -209,11 +286,19 @@ export const useApi = () => {
     contacts.value = []
     templates.value = []
     schedule.value = []
+    sequences.value = []
+    settings.value = {
+      gmail: { email: '', app_password: '' },
+      codementor: { access_token: '', refresh_token: '' },
+      automation: { enabled: false, check_interval: 15, max_retries: 3, timezone: 'UTC' }
+    }
     
     await Promise.all([
       loadContacts(),
       loadTemplates(),
-      loadSchedule()
+      loadSchedule(),
+      loadSequences(),
+      loadSettings()
     ])
   }
 
@@ -222,6 +307,8 @@ export const useApi = () => {
     contacts,
     templates,
     schedule,
+    sequences,
+    settings,
     isLoading,
     error,
     
@@ -230,12 +317,17 @@ export const useApi = () => {
     loadContacts,
     loadTemplates,
     loadSchedule,
+    loadSequences,
+    loadSettings,
     createContact,
     updateContact,
     deleteContact,
     createTemplate,
     updateTemplate,
     deleteTemplate,
+    createSequence,
+    updateSequence,
+    deleteSequence,
     refreshAll,
     showStatus,
     showStatusWithProgress

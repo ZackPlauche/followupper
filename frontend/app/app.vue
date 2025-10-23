@@ -9,7 +9,7 @@
               <Icon name="lucide:loader-2" class="w-12 h-12 text-emerald-400 animate-spin mx-auto" />
             </div>
             <h2 class="text-4xl font-thin text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 leading-loose">
-              Initializing app...
+              Initializing data...
             </h2>
           </div>
         </div>
