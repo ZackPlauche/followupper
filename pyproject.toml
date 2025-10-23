@@ -1,0 +1,31 @@
+[project]
+name = "followupper"
+version = "0.1.0"
+description = "Automated follow-up application for managing client communications across multiple platforms"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "flask>=3.0.0",
+    "flask-cors>=4.0.0",
+    "SQLAlchemy>=2.0.0",
+    "alembic>=1.12.0",
+    "apscheduler>=3.10.0",
+    "cryptography>=41.0.0",
+    "requests>=2.31.0",
+    "python-dotenv>=1.0.0",
+    "emoji>=2.8.0"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0"
+]
