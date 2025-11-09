@@ -4,17 +4,18 @@ export const useApi = () => {
   const contacts = useState('contacts', () => [])
   const templates = useState('templates', () => [])
   const schedule = useState('schedule', () => [])
-  const sequences = useState('sequences', () => [])
+  const campaigns = useState('campaigns', () => [])
   const settings = useState('settings', () => ({
     gmail: { email: '', app_password: '' },
     codementor: { access_token: '', refresh_token: '' },
-    automation: { enabled: false, check_interval: 15, max_retries: 3, timezone: 'UTC' }
+    automation: { enabled: false, check_interval: 15, max_retries: 3, timezone: 'UTC' },
+    user: { timezone: 'UTC', footer: '' }
   }))
   const isLoading = useState('isLoading', () => false)
   const error = useState('error', () => null)
 
   // API base URL
-  const API_BASE = 'http://localhost:5000/api'
+  const API_BASE = 'http://localhost:8001/api'
 
   // Status message helper
   const showStatus = (message, duration = 5000) => {
@@ -44,8 +45,24 @@ export const useApi = () => {
           return await response.json()
         }
         
+        // Try to extract error message from response body
+        let errorMessage = `API Error: ${response.status}`
+        try {
+          const errorData = await response.json()
+          if (errorData.error) {
+            errorMessage = errorData.error
+          } else if (errorData.message) {
+            errorMessage = errorData.message
+          }
+        } catch (e) {
+          // If response is not JSON, use status code
+        }
+        
         if (i === retries - 1) {
-          throw new Error(`API Error: ${response.status}`)
+          const error = new Error(errorMessage)
+          error.status = response.status
+          error.response = response
+          throw error
         }
       } catch (error) {
         console.error(`API call failed (attempt ${i + 1}):`, error)
@@ -61,7 +78,7 @@ export const useApi = () => {
   const loadContacts = async () => {
     isLoading.value = true
     try {
-      const data = await apiCall('/contacts')
+      const data = await apiCall('/contacts/')
       contacts.value = data
       return data
     } catch (error) {
@@ -77,7 +94,7 @@ export const useApi = () => {
   const loadTemplates = async () => {
     isLoading.value = true
     try {
-      const data = await apiCall('/templates')
+      const data = await apiCall('/templates/')
       templates.value = data
       return data
     } catch (error) {
@@ -93,7 +110,7 @@ export const useApi = () => {
   const loadSchedule = async () => {
     isLoading.value = true
     try {
-      const data = await apiCall('/schedule')
+      const data = await apiCall('/schedule/')
       schedule.value = data
       return data
     } catch (error) {
@@ -105,27 +122,12 @@ export const useApi = () => {
     }
   }
 
-  // Load sequences
-  const loadSequences = async () => {
-    isLoading.value = true
-    try {
-      const data = await apiCall('/sequences')
-      sequences.value = data
-      return data
-    } catch (error) {
-      console.error('Error loading sequences:', error)
-      error.value = error.message
-      return []
-    } finally {
-      isLoading.value = false
-    }
-  }
 
   // Load settings
   const loadSettings = async () => {
     isLoading.value = true
     try {
-      const data = await apiCall('/settings')
+      const data = await apiCall('/settings/')
       settings.value = data
       return data
     } catch (error) {
@@ -140,7 +142,7 @@ export const useApi = () => {
   // Create contact
   const createContact = async (contactData) => {
     try {
-      const result = await apiCall('/contacts', {
+      const result = await apiCall('/contacts/', {
         method: 'POST',
         body: JSON.stringify(contactData)
       })
@@ -155,7 +157,7 @@ export const useApi = () => {
   // Update contact
   const updateContact = async (contactId, contactData) => {
     try {
-      await apiCall(`/contacts/${contactId}`, {
+      await apiCall(`/contacts/${contactId}/`, {
         method: 'PUT',
         body: JSON.stringify(contactData)
       })
@@ -174,7 +176,7 @@ export const useApi = () => {
   // Delete contact
   const deleteContact = async (contactId) => {
     try {
-      await apiCall(`/contacts/${contactId}`, { method: 'DELETE' })
+      await apiCall(`/contacts/${contactId}/`, { method: 'DELETE' })
       
     } catch (error) {
       console.error('Error deleting contact:', error)
@@ -185,7 +187,7 @@ export const useApi = () => {
   // Create template
   const createTemplate = async (templateData) => {
     try {
-      const result = await apiCall('/templates', {
+      const result = await apiCall('/templates/', {
         method: 'POST',
         body: JSON.stringify(templateData)
       })
@@ -200,7 +202,7 @@ export const useApi = () => {
   // Update template
   const updateTemplate = async (templateId, templateData) => {
     try {
-      await apiCall(`/templates/${templateId}`, {
+      await apiCall(`/templates/${templateId}/`, {
         method: 'PUT',
         body: JSON.stringify(templateData)
       })
@@ -214,7 +216,7 @@ export const useApi = () => {
   // Delete template
   const deleteTemplate = async (templateId) => {
     try {
-      await apiCall(`/templates/${templateId}`, { method: 'DELETE' })
+      await apiCall(`/templates/${templateId}/`, { method: 'DELETE' })
       
     } catch (error) {
       console.error('Error deleting template:', error)
@@ -222,39 +224,76 @@ export const useApi = () => {
     }
   }
 
-  // Create sequence
-  const createSequence = async (sequenceData) => {
+
+  // Load campaigns
+  const loadCampaigns = async () => {
+    isLoading.value = true
     try {
-      const result = await apiCall('/sequences', {
+      const data = await apiCall('/campaigns/')
+      campaigns.value = data
+      return data
+    } catch (error) {
+      console.error('Error loading campaigns:', error)
+      error.value = error.message
+      return []
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  // Create campaign
+  const createCampaign = async (campaignData) => {
+    try {
+      const result = await apiCall('/campaigns/', {
         method: 'POST',
-        body: JSON.stringify(sequenceData)
+        body: JSON.stringify(campaignData)
       })
       return result
     } catch (error) {
-      console.error('Error creating sequence:', error)
+      console.error('Error creating campaign:', error)
       throw error
     }
   }
 
-  // Update sequence
-  const updateSequence = async (id, sequenceData) => {
+  // Update campaign
+  const updateCampaign = async (id, campaignData) => {
     try {
-      await apiCall(`/sequences/${id}`, {
+      const result = await apiCall(`/campaigns/${id}/`, {
         method: 'PUT',
-        body: JSON.stringify(sequenceData)
+        body: JSON.stringify(campaignData)
       })
+      // Update the campaign in the local state
+      const index = campaigns.value.findIndex(c => c.id === id)
+      if (index !== -1) {
+        campaigns.value[index] = result
+      }
+      return result
     } catch (error) {
-      console.error('Error updating sequence:', error)
+      console.error('Error updating campaign:', error)
       throw error
     }
   }
 
-  // Delete sequence
-  const deleteSequence = async (id) => {
+  // Delete campaign
+  const deleteCampaign = async (id) => {
     try {
-      await apiCall(`/sequences/${id}`, { method: 'DELETE' })
+      await apiCall(`/campaigns/${id}/`, { method: 'DELETE' })
     } catch (error) {
-      console.error('Error deleting sequence:', error)
+      console.error('Error deleting campaign:', error)
+      throw error
+    }
+  }
+
+  // Send email
+  const sendEmail = async (emailData) => {
+    try {
+      const result = await apiCall('/settings/send-email/', {
+        method: 'POST',
+        body: JSON.stringify(emailData)
+      })
+      return result
+    } catch (error) {
+      console.error('Error sending email:', error)
       throw error
     }
   }
@@ -269,7 +308,7 @@ export const useApi = () => {
         loadContacts(),
         loadTemplates(),
         loadSchedule(),
-        loadSequences(),
+        loadCampaigns(),
         loadSettings()
       ])
       console.log('✅ App initialized successfully')
@@ -286,18 +325,19 @@ export const useApi = () => {
     contacts.value = []
     templates.value = []
     schedule.value = []
-    sequences.value = []
+    campaigns.value = []
     settings.value = {
       gmail: { email: '', app_password: '' },
       codementor: { access_token: '', refresh_token: '' },
-      automation: { enabled: false, check_interval: 15, max_retries: 3, timezone: 'UTC' }
+      automation: { enabled: false, check_interval: 15, max_retries: 3, timezone: 'UTC' },
+      user: { timezone: 'UTC', footer: '' }
     }
     
     await Promise.all([
       loadContacts(),
       loadTemplates(),
       loadSchedule(),
-      loadSequences(),
+      loadCampaigns(),
       loadSettings()
     ])
   }
@@ -307,7 +347,7 @@ export const useApi = () => {
     contacts,
     templates,
     schedule,
-    sequences,
+    campaigns,
     settings,
     isLoading,
     error,
@@ -317,7 +357,7 @@ export const useApi = () => {
     loadContacts,
     loadTemplates,
     loadSchedule,
-    loadSequences,
+    loadCampaigns,
     loadSettings,
     createContact,
     updateContact,
@@ -325,9 +365,10 @@ export const useApi = () => {
     createTemplate,
     updateTemplate,
     deleteTemplate,
-    createSequence,
-    updateSequence,
-    deleteSequence,
+    createCampaign,
+    updateCampaign,
+    deleteCampaign,
+    sendEmail,
     refreshAll,
     showStatus,
     showStatusWithProgress

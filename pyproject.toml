@@ -5,15 +5,17 @@ description = "Automated follow-up application for managing client communication
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "flask>=3.0.0",
-    "flask-cors>=4.0.0",
-    "SQLAlchemy>=2.0.0",
-    "alembic>=1.12.0",
+    "django>=5.0.0",
+    "djangorestframework>=3.14.0",
+    "django-cors-headers>=4.3.0",
     "apscheduler>=3.10.0",
     "cryptography>=41.0.0",
     "requests>=2.31.0",
     "python-dotenv>=1.0.0",
-    "emoji>=2.8.0"
+    "emoji>=2.8.0",
+    "python-gmail",
+    "pytz>=2024.1",
+    "python-dateutil>=2.8.2",
 ]
 
 [build-system]
@@ -29,3 +31,6 @@ dev-dependencies = [
     "black>=23.0.0",
     "flake8>=6.0.0"
 ]
+
+[tool.uv.sources]
+python-gmail = { git = "https://github.com/zackplauche/python-gmail" }

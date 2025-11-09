@@ -24,7 +24,10 @@
             <tbody class="bg-slate-800/30 divide-y divide-emerald-500/10">
               <tr v-for="contact in contacts" :key="contact.id" class="hover:bg-slate-700/30 transition-colors">
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-light text-slate-100">
-                  {{ contact.name }}
+                  <button @click="$router.push(`/contacts/${contact.id}`)" 
+                          class="hover:text-emerald-400 transition-colors cursor-pointer">
+                    {{ contact.name }}
+                  </button>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
                   {{ contact.email }}
@@ -39,6 +42,7 @@
                   </span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-light">
+                  <button v-if="contact.email" @click="openSendEmailModal(contact)" class="text-blue-400 hover:text-blue-300 mr-4 transition-colors">Send</button>
                   <button @click="editContact(contact)" class="text-emerald-400 hover:text-emerald-300 mr-4 transition-colors">Edit</button>
                   <button @click="handleDeleteContact(contact.id)" class="text-red-400 hover:text-red-300 transition-colors">Delete</button>
                 </td>
@@ -155,6 +159,44 @@
       </div>
     </div>
 
+    <!-- Send Email Modal -->
+    <div v-if="showSendEmailModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+      <div class="bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-2xl border border-emerald-500/20 p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <h3 class="text-2xl font-thin text-slate-100 mb-6">Send Email to {{ selectedContact?.name }}</h3>
+        
+        <form @submit.prevent="handleSendEmail" class="space-y-4">
+          <div>
+            <label class="block text-sm font-light text-slate-300 mb-2">To</label>
+            <input :value="selectedContact?.email" type="email" disabled
+                   class="w-full bg-slate-700/30 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-400 cursor-not-allowed">
+          </div>
+          
+          <div>
+            <label class="block text-sm font-light text-slate-300 mb-2">Subject *</label>
+            <input v-model="emailData.subject" type="text" required
+                   class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors">
+          </div>
+          
+          <div>
+            <label class="block text-sm font-light text-slate-300 mb-2">Message *</label>
+            <textarea v-model="emailData.body" rows="10" required
+                      class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors resize-none"></textarea>
+          </div>
+          
+          <div class="flex space-x-3 pt-4">
+            <button type="button" @click="closeSendEmailModal"
+                    class="flex-1 bg-slate-600/50 text-slate-300 px-4 py-3 rounded-xl font-light hover:bg-slate-600/70 transition-colors">
+              Cancel
+            </button>
+            <button type="submit"
+                    class="flex-1 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white px-4 py-3 rounded-xl font-light hover:shadow-lg transition-all duration-300">
+              Send Email
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- Status Bar -->
     <div v-if="showStatusBar" class="fixed bottom-6 right-6 bg-slate-800/90 backdrop-blur-sm rounded-xl shadow-2xl border border-emerald-500/20 overflow-hidden transition-all duration-300">
       <div class="px-6 py-3 text-sm text-slate-300 font-light">
@@ -181,7 +223,7 @@ useHead({
 })
 
 // Use shared API state
-const { contacts, createContact, updateContact, deleteContact, loadContacts, showStatusWithProgress } = useApi()
+const { contacts, createContact, updateContact, deleteContact, loadContacts, sendEmail, showStatusWithProgress } = useApi()
 
 // Local UI state
 const statusMessage = ref('Loading...')
@@ -191,6 +233,8 @@ const statusProgress = ref(100)
 const showContactForm = ref(false)
 const showEditContactForm = ref(false)
 const editingContact = ref(null)
+const showSendEmailModal = ref(false)
+const selectedContact = ref(null)
 
 // Form data
 const newContact = ref({
@@ -199,6 +243,12 @@ const newContact = ref({
   codementor_username: '',
   platform_preference: 'email',
   notes: ''
+})
+
+const emailData = ref({
+  to_email: '',
+  subject: '',
+  body: ''
 })
 
 
@@ -315,6 +365,43 @@ const handleUpdateContact = async () => {
     // Revert on error
     await loadContacts()
     showStatusWithProgressLocal('Error updating contact', 5000)
+  }
+}
+
+const openSendEmailModal = (contact) => {
+  selectedContact.value = contact
+  emailData.value = {
+    to_email: contact.email,
+    subject: '',
+    body: ''
+  }
+  showSendEmailModal.value = true
+}
+
+const closeSendEmailModal = () => {
+  showSendEmailModal.value = false
+  selectedContact.value = null
+  emailData.value = {
+    to_email: '',
+    subject: '',
+    body: ''
+  }
+}
+
+const handleSendEmail = async () => {
+  try {
+    showStatusWithProgressLocal('Sending email...', 3000)
+    await sendEmail({
+      to_email: emailData.value.to_email,
+      subject: emailData.value.subject,
+      body: emailData.value.body
+    })
+    showStatusWithProgressLocal('Email sent successfully!', 5000)
+    closeSendEmailModal()
+  } catch (error) {
+    console.error('Error sending email:', error)
+    const errorMessage = error.message || 'Failed to send email'
+    showStatusWithProgressLocal(errorMessage, 5000)
   }
 }
 

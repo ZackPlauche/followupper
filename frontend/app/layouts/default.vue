@@ -18,15 +18,10 @@
                           :class="$route.path === '/templates' ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-lg' : 'text-slate-300 hover:text-emerald-400'">
                   Templates
                 </NuxtLink>
-                <NuxtLink to="/sequences" 
+                <NuxtLink to="/campaigns" 
                           class="px-6 py-3 rounded-xl font-light transition-all duration-300 hover:scale-105"
-                          :class="$route.path === '/sequences' ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-lg' : 'text-slate-300 hover:text-emerald-400'">
-                  Sequences
-                </NuxtLink>
-                <NuxtLink to="/schedule" 
-                          class="px-6 py-3 rounded-xl font-light transition-all duration-300 hover:scale-105"
-                          :class="$route.path === '/schedule' ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-lg' : 'text-slate-300 hover:text-emerald-400'">
-                  Schedule
+                          :class="$route.path === '/campaigns' ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-lg' : 'text-slate-300 hover:text-emerald-400'">
+                  Campaigns
                 </NuxtLink>
                 <NuxtLink to="/settings" 
                           class="px-6 py-3 rounded-xl font-light transition-all duration-300 hover:scale-105"

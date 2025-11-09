@@ -4,6 +4,9 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   modules: ['@nuxt/icon', '@nuxt/fonts', '@nuxt/image', '@nuxtjs/tailwindcss'],
   css: ['~/assets/css/tailwind.css'],
+  devServer: {
+    port: 4000
+  },
   tailwindcss: {
     exposeConfig: true,
     cssPath: '~/assets/css/tailwind.css',
