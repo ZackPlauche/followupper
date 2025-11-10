@@ -13,9 +13,14 @@ dependencies = [
     "requests>=2.31.0",
     "python-dotenv>=1.0.0",
     "emoji>=2.8.0",
-    "python-gmail",
     "pytz>=2024.1",
     "python-dateutil>=2.8.2",
+    "python-gmail",
+    "codementorapi",
+    "pyotp>=2.9.0",
+    "qrcode>=8.2",
+    "dj-database-url>=2.1.0",
+    "click>=8.1.0",
 ]
 
 [build-system]
@@ -33,4 +38,5 @@ dev-dependencies = [
 ]
 
 [tool.uv.sources]
-python-gmail = { git = "https://github.com/zackplauche/python-gmail" }
+python-gmail = { git = "https://github.com/ZackPlauche/python-gmail.git" }
+codementorapi = { git = "https://github.com/ZackPlauche/codementorapi.git" }

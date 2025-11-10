@@ -6,22 +6,33 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Q, Count
+from django.http import HttpResponse
 import json
+import csv
+import io
 
 from .models import (
     Contact, MessageTemplate, ScheduledFollowup, PlatformCredentials,
-    Campaign, CampaignStep, CampaignAssignment, AssignmentStatus, UserSettings
+    Campaign, CampaignStep, CampaignAssignment, AssignmentStatus, UserSettings,
+    MessageSequence, Message, InterestSubmission
 )
 from .serializers import (
     ContactSerializer, MessageTemplateSerializer, ScheduledFollowupSerializer,
     PlatformCredentialsSerializer, CampaignSerializer, CampaignStepSerializer,
-    CampaignAssignmentSerializer, UserSettingsSerializer
+    CampaignAssignmentSerializer, UserSettingsSerializer,
+    MessageSequenceSerializer, MessageSerializer, InterestSubmissionSerializer
 )
 
 
 class ContactViewSet(viewsets.ModelViewSet):
-    queryset = Contact.objects.all()
     serializer_class = ContactSerializer
+
+    def get_queryset(self):
+        """Filter contacts by the current user."""
+        if self.request.user.is_authenticated:
+            return Contact.objects.filter(user=self.request.user)
+        # For backward compatibility, return all contacts if not authenticated
+        return Contact.objects.filter(user__isnull=True)
 
     def create(self, request, *args, **kwargs):
         data = request.data.copy()
@@ -32,7 +43,8 @@ class ContactViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
+        # Associate contact with current user
+        contact = serializer.save(user=request.user if request.user.is_authenticated else None)
         headers = self.get_success_headers(serializer.data)
         return Response({'id': serializer.data['id'], 'message': 'Contact created successfully'},
                         status=status.HTTP_201_CREATED, headers=headers)
@@ -50,6 +62,153 @@ class ContactViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return Response({'message': 'Contact updated successfully'})
+
+    @action(detail=True, methods=['post'], url_path='cancel-chain')
+    def cancel_chain(self, request, pk=None):
+        """Cancel a message sequence by marking all unsent messages as cancelled."""
+        contact = self.get_object()
+        sequence_id = request.data.get('sequence_id')
+
+        if not sequence_id:
+            return Response(
+                {'error': 'sequence_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            sequence = MessageSequence.objects.get(id=sequence_id, contact=contact)
+
+            # Mark all unsent messages in the sequence as cancelled
+            updated = Message.objects.filter(
+                sequence=sequence,
+                status='pending'
+            ).update(status='cancelled')
+
+            return Response({
+                'message': 'Sequence cancelled successfully',
+                'cancelled_count': updated
+            })
+
+        except MessageSequence.DoesNotExist:
+            return Response(
+                {'error': 'Sequence not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to cancel sequence: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['get'], url_path='export')
+    def export_contacts(self, request):
+        """Export all contacts as CSV."""
+        if request.user.is_authenticated:
+            contacts = Contact.objects.filter(user=request.user)
+        else:
+            contacts = Contact.objects.filter(user__isnull=True)
+
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="contacts_export.csv"'
+
+        writer = csv.writer(response)
+        writer.writerow([
+            'Name', 'Preferred Name', 'Gender', 'Email', 'Codementor Username',
+            'Platform Preference', 'Timezone', 'Notes', 'Is Active'
+        ])
+
+        for contact in contacts:
+            platform_pref = ','.join(contact.platform_preference) if isinstance(contact.platform_preference, list) else str(contact.platform_preference)
+            writer.writerow([
+                contact.name,
+                contact.preferred_name,
+                contact.gender,
+                contact.email or '',
+                contact.codementor_username or '',
+                platform_pref,
+                contact.timezone,
+                contact.notes,
+                contact.is_active
+            ])
+
+        return response
+
+    @action(detail=False, methods=['post'], url_path='import')
+    def import_contacts(self, request):
+        """Import contacts from CSV."""
+        if 'file' not in request.FILES:
+            return Response({'error': 'No file provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+        file = request.FILES['file']
+        if not file.name.endswith('.csv'):
+            return Response({'error': 'File must be a CSV'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            decoded_file = file.read().decode('utf-8')
+            io_string = io.StringIO(decoded_file)
+            reader = csv.DictReader(io_string)
+
+            created = 0
+            updated = 0
+            errors = []
+
+            for row_num, row in enumerate(reader, start=2):  # Start at 2 because row 1 is header
+                try:
+                    name = row.get('Name', '').strip()
+                    if not name:
+                        errors.append(f'Row {row_num}: Name is required')
+                        continue
+
+                    email = row.get('Email', '').strip() or None
+                    codementor_username = row.get('Codementor Username', '').strip() or None
+
+                    # Check for existing contact by email or codementor username
+                    contact = None
+                    if email:
+                        contact = Contact.objects.filter(email=email).first()
+                    if not contact and codementor_username:
+                        contact = Contact.objects.filter(codementor_username=codementor_username).first()
+
+                    contact_data = {
+                        'name': name,
+                        'preferred_name': row.get('Preferred Name', '').strip(),
+                        'gender': row.get('Gender', '').strip() or '',
+                        'email': email,
+                        'codementor_username': codementor_username,
+                        'timezone': row.get('Timezone', '').strip() or 'UTC',
+                        'notes': row.get('Notes', '').strip(),
+                        'is_active': row.get('Is Active', 'True').strip().lower() in ('true', '1', 'yes', 'y'),
+                        'user': request.user if request.user.is_authenticated else None
+                    }
+
+                    # Handle platform preference
+                    platform_pref = row.get('Platform Preference', '').strip()
+                    if platform_pref:
+                        contact_data['platform_preference'] = [p.strip() for p in platform_pref.split(',') if p.strip()]
+
+                    if contact:
+                        # Update existing
+                        for key, value in contact_data.items():
+                            setattr(contact, key, value)
+                        contact.save()
+                        updated += 1
+                    else:
+                        # Create new
+                        Contact.objects.create(**contact_data)
+                        created += 1
+
+                except Exception as e:
+                    errors.append(f'Row {row_num}: {str(e)}')
+
+            return Response({
+                'message': f'Import completed: {created} created, {updated} updated',
+                'created': created,
+                'updated': updated,
+                'errors': errors
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({'error': f'Failed to import contacts: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class MessageTemplateViewSet(viewsets.ModelViewSet):
@@ -210,59 +369,210 @@ class PlatformCredentialsViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'], url_path='test/codementor')
     def test_codementor(self, request):
         """Test Codementor connection."""
-        # TODO: Implement Codementor connection test
-        return Response({'message': 'Codementor connection test successful'})
+        import codementorapi
 
-    @action(detail=False, methods=['post'], url_path='send-email')
-    def send_email(self, request):
-        """Send an email to a contact."""
-        from gmail import Client
+        access_token = request.data.get('access_token', '').strip()
+        refresh_token = request.data.get('refresh_token', '').strip()
 
-        # Get Gmail credentials
-        gmail_creds = PlatformCredentials.objects.filter(platform='gmail').first()
-        if not gmail_creds:
+        if not access_token or not refresh_token:
             return Response(
-                {'error': 'Gmail credentials not configured. Please configure Gmail in settings.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        gmail_data = gmail_creds.get_credentials()
-        gmail_email = gmail_data.get('email', '').strip()
-        app_password = gmail_data.get('app_password', '').strip()
-        gmail_name = gmail_data.get('name', '').strip()
-
-        if not gmail_email or not app_password:
-            return Response(
-                {'error': 'Gmail credentials are incomplete. Please configure Gmail in settings.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Get email data from request
-        to_email = request.data.get('to_email', '').strip()
-        subject = request.data.get('subject', '').strip()
-        body = request.data.get('body', '').strip()
-
-        if not to_email or not subject or not body:
-            return Response(
-                {'error': 'To email, subject, and body are required'},
+                {'error': 'Access token and refresh token are required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         try:
-            # Create Gmail client and send email
-            client_kwargs = {'email': gmail_email, 'app_password': app_password}
-            if gmail_name:
-                client_kwargs['name'] = gmail_name
-            client = Client(**client_kwargs)
-            client.send_email(to=to_email, subject=subject, body=body)
-
-            return Response({'message': 'Email sent successfully'})
-
+            # Create client to test connection
+            client = codementorapi.Client(
+                access_token=access_token,
+                refresh_token=refresh_token
+            )
+            # Try to get sessions to verify credentials work
+            client.get_sessions()
+            return Response({'message': 'Codementor connection test successful'})
         except Exception as e:
+            error_message = str(e)
+            if 'authentication' in error_message.lower() or 'token' in error_message.lower():
+                return Response(
+                    {'error': 'Authentication failed. Please check your access token and refresh token.'},
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
             return Response(
-                {'error': f'Failed to send email: {str(e)}'},
+                {'error': f'Connection failed: {error_message}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    @action(detail=False, methods=['post'], url_path='send-message')
+    def send_message(self, request):
+        """Send a message to a contact via one or more platforms."""
+        import json
+        from datetime import datetime
+        from gmail import Client
+
+        # Get contact ID and message data
+        contact_id = request.data.get('contact_id')
+        platforms = request.data.get('platforms', [])  # List of platforms: ['email', 'codementor']
+        subject = request.data.get('subject', '').strip()
+        body = request.data.get('body', '').strip()
+
+        if not contact_id:
+            return Response(
+                {'error': 'Contact ID is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not platforms or not isinstance(platforms, list):
+            return Response(
+                {'error': 'At least one platform must be specified'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not body:
+            return Response(
+                {'error': 'Message body is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get contact
+        try:
+            contact = Contact.objects.get(id=contact_id)
+        except Contact.DoesNotExist:
+            return Response(
+                {'error': 'Contact not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Validate platforms and get recipients
+        valid_platforms = []
+        if 'email' in platforms:
+            if not contact.email:
+                return Response(
+                    {'error': 'Contact does not have an email address'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            valid_platforms.append('email')
+
+        if 'codementor' in platforms:
+            if not contact.codementor_username:
+                return Response(
+                    {'error': 'Contact does not have a Codementor username'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            valid_platforms.append('codementor')
+
+        if not valid_platforms:
+            return Response(
+                {'error': 'No valid platforms available for this contact'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate subject for email
+        if 'email' in valid_platforms and not subject:
+            return Response(
+                {'error': 'Subject is required for email messages'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        sent_platforms = []
+        errors = []
+        email_message_id = None
+
+        # Send via email if requested
+        if 'email' in valid_platforms:
+            try:
+                gmail_creds = PlatformCredentials.objects.filter(platform='gmail').first()
+                if not gmail_creds:
+                    errors.append('Gmail credentials not configured')
+                else:
+                    gmail_data = gmail_creds.get_credentials()
+                    gmail_email = gmail_data.get('email', '').strip()
+                    app_password = gmail_data.get('app_password', '').strip()
+                    gmail_name = gmail_data.get('name', '').strip()
+
+                    if not gmail_email or not app_password:
+                        errors.append('Gmail credentials are incomplete')
+                    else:
+                        client_kwargs = {'email': gmail_email, 'app_password': app_password}
+                        if gmail_name:
+                            client_kwargs['name'] = gmail_name
+                        client = Client(**client_kwargs)
+                        email_message_id = client.send_email(to=contact.email, subject=subject, body=body)
+                        sent_platforms.append('email')
+            except Exception as e:
+                errors.append(f'Email send failed: {str(e)}')
+
+        # Send via Codementor if requested
+        if 'codementor' in valid_platforms:
+            try:
+                import codementorapi
+                codementor_creds = PlatformCredentials.objects.filter(platform='codementor').first()
+                if not codementor_creds:
+                    errors.append('Codementor credentials not configured')
+                else:
+                    creds_data = codementor_creds.get_credentials()
+                    access_token = creds_data.get('access_token', '').strip()
+                    refresh_token = creds_data.get('refresh_token', '').strip()
+
+                    if not access_token or not refresh_token:
+                        errors.append('Codementor credentials are incomplete')
+                    else:
+                        client = codementorapi.Client(
+                            access_token=access_token,
+                            refresh_token=refresh_token
+                        )
+                        client.send_message(contact.codementor_username, body)
+                        sent_platforms.append('codementor')
+            except Exception as e:
+                errors.append(f'Codementor send failed: {str(e)}')
+
+        if not sent_platforms:
+            return Response(
+                {'error': 'Failed to send message', 'details': errors},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        # Store in message history (create Message record)
+        message_record = None
+        try:
+            from django.utils import timezone
+            sent_time = timezone.now()
+            create_kwargs = {
+                'contact': contact,
+                'subject': subject if 'email' in sent_platforms else '',
+                'body': body,
+                'platforms': sent_platforms,
+                'status': 'sent',
+                'sent_at': sent_time
+            }
+            if email_message_id:
+                create_kwargs['email_message_id'] = email_message_id
+            message_record = Message.objects.create(**create_kwargs)
+
+            # Update contact's last_messaged field
+            contact.last_messaged = sent_time
+            contact.save(update_fields=['last_messaged'])
+        except Exception as e:
+            # Log but don't fail the request
+            import logging
+            logger = logging.getLogger('followupper')
+            logger.error(f"Failed to save message history: {str(e)}")
+
+        response_message = f'Message sent via {", ".join(sent_platforms)}'
+        if errors:
+            response_message += f' (warnings: {"; ".join(errors)})'
+
+        response_data = {
+            'message': response_message,
+            'sent_platforms': sent_platforms,
+            'errors': errors if errors else None
+        }
+
+        # Include email_message_id if available (for chain message threading)
+        if email_message_id:
+            response_data['email_message_id'] = email_message_id
+            if message_record:
+                response_data['message_id'] = message_record.id
+
+        return Response(response_data)
 
 
 class CampaignViewSet(viewsets.ModelViewSet):
@@ -302,7 +612,97 @@ class CampaignViewSet(viewsets.ModelViewSet):
 # Health check view
 
 
+class MessageSequenceViewSet(viewsets.ModelViewSet):
+    queryset = MessageSequence.objects.all()
+    serializer_class = MessageSequenceSerializer
+
+    def get_queryset(self):
+        """Filter sequences by contact if contact_id is provided."""
+        queryset = MessageSequence.objects.all()
+        contact_id = self.request.query_params.get('contact_id', None)
+        if contact_id:
+            queryset = queryset.filter(contact_id=contact_id)
+        return queryset.select_related('contact').prefetch_related('messages')
+
+
+class MessageViewSet(viewsets.ModelViewSet):
+    queryset = Message.objects.all()
+    serializer_class = MessageSerializer
+
+    def get_queryset(self):
+        """Filter messages by contact, status, or sequence."""
+        queryset = Message.objects.all()
+        contact_id = self.request.query_params.get('contact_id', None)
+        status_filter = self.request.query_params.get('status', None)
+        sequence_id = self.request.query_params.get('sequence_id', None)
+
+        if contact_id:
+            queryset = queryset.filter(contact_id=contact_id)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        if sequence_id:
+            queryset = queryset.filter(sequence_id=sequence_id)
+
+        return queryset.select_related('contact', 'sequence', 'campaign', 'campaign_assignment').order_by('-created_at')
+
+    @action(detail=True, methods=['post'], url_path='send-now')
+    def send_now(self, request, pk=None):
+        """Send a pending message immediately."""
+        from .scheduler import get_scheduler
+        from django.utils import timezone
+
+        message = self.get_object()
+
+        if message.status != 'pending':
+            return Response(
+                {'error': 'Message is not pending and cannot be sent'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            scheduler = get_scheduler()
+            scheduler.send_scheduled_message(message.contact, message)
+
+            # Refresh message from DB to get updated email_message_id
+            message.refresh_from_db()
+
+            return Response({
+                'message': 'Message sent successfully',
+                'email_message_id': message.email_message_id,
+                'status': message.status
+            })
+        except Exception as e:
+            import logging
+            logger = logging.getLogger('followupper')
+            logger.error(f"Failed to send message {message.id}: {str(e)}", exc_info=True)
+            return Response(
+                {'error': f'Failed to send message: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
 @api_view(['GET'])
 def health_check(request):
     """Health check endpoint."""
     return Response({'status': 'healthy', 'message': 'Followupper API is running'})
+
+
+class InterestSubmissionViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing interest submissions (superuser only)."""
+    queryset = InterestSubmission.objects.all()
+    serializer_class = InterestSubmissionSerializer
+
+    def get_queryset(self):
+        """Only superusers can access interest submissions."""
+        if self.request.user.is_superuser:
+            return InterestSubmission.objects.all()
+        return InterestSubmission.objects.none()
+
+    def get_permissions(self):
+        """Anyone can submit interest, but only superusers can view/manage."""
+        if self.action == 'create':
+            from rest_framework.permissions import AllowAny
+            return [AllowAny()]
+        # But only superusers can view/manage
+        from rest_framework.permissions import IsAdminUser
+        return [IsAdminUser()]

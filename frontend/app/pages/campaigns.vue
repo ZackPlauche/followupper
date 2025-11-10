@@ -243,30 +243,61 @@
             
             <div>
               <label class="block text-sm font-light text-slate-300 mb-2">Timezone</label>
-              <select v-model="newCampaign.timezone"
-                      class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 focus:border-emerald-400 focus:outline-none transition-colors">
-                <option value="contact">Contact's Timezone</option>
-                <option value="UTC">UTC</option>
-                <option value="America/New_York">Eastern Time (ET)</option>
-                <option value="America/Chicago">Central Time (CT)</option>
-                <option value="America/Denver">Mountain Time (MT)</option>
-                <option value="America/Los_Angeles">Pacific Time (PT)</option>
-                <option value="Europe/London">London (GMT)</option>
-                <option value="Europe/Paris">Paris (CET)</option>
-                <option value="Asia/Tokyo">Tokyo (JST)</option>
-                <option value="Australia/Sydney">Sydney (AEST)</option>
-              </select>
-              <p class="text-xs text-slate-400 mt-1">Select "Contact's Timezone" to send at the specified time in each contact's local timezone</p>
+              <div class="flex items-center bg-slate-700/50 rounded-lg p-1 border border-slate-500/30 w-fit">
+                <button 
+                  type="button"
+                  @click="newCampaign.timezone = 'contact'"
+                  :class="newCampaign.timezone === 'contact' ? 'bg-slate-500/50 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
+                  class="px-3 py-1.5 rounded-md transition-colors text-sm font-light">
+                  Contact
+                </button>
+                <button 
+                  type="button"
+                  @click="newCampaign.timezone = 'UTC'"
+                  :class="newCampaign.timezone === 'UTC' ? 'bg-slate-500/50 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
+                  class="px-3 py-1.5 rounded-md transition-colors text-sm font-light">
+                  UTC
+                </button>
+                <button 
+                  type="button"
+                  @click="newCampaign.timezone = 'America/New_York'"
+                  :class="newCampaign.timezone === 'America/New_York' ? 'bg-slate-500/50 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
+                  class="px-3 py-1.5 rounded-md transition-colors text-sm font-light">
+                  ET
+                </button>
+                <button 
+                  type="button"
+                  @click="newCampaign.timezone = 'America/Chicago'"
+                  :class="newCampaign.timezone === 'America/Chicago' ? 'bg-slate-500/50 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
+                  class="px-3 py-1.5 rounded-md transition-colors text-sm font-light">
+                  CT
+                </button>
+                <button 
+                  type="button"
+                  @click="newCampaign.timezone = 'America/Denver'"
+                  :class="newCampaign.timezone === 'America/Denver' ? 'bg-slate-500/50 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
+                  class="px-3 py-1.5 rounded-md transition-colors text-sm font-light">
+                  MT
+                </button>
+                <button 
+                  type="button"
+                  @click="newCampaign.timezone = 'America/Los_Angeles'"
+                  :class="newCampaign.timezone === 'America/Los_Angeles' ? 'bg-slate-500/50 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
+                  class="px-3 py-1.5 rounded-md transition-colors text-sm font-light">
+                  PT
+                </button>
+              </div>
+              <p class="text-xs text-slate-400 mt-1">Select "Contact" to send at the specified time in each contact's local timezone</p>
             </div>
           </div>
         </div>
 
         <div v-if="newCampaign.campaign_type === 'recurring'">
           <label class="block text-sm font-light text-slate-300 mb-2">Message Template</label>
-          <textarea v-model="newCampaign.message_template" placeholder="Hey {user.first_name}! Just checking in..."
+          <textarea v-model="newCampaign.message_template" placeholder="Hey {first_name}! Just checking in..."
                     class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors h-32 resize-none"></textarea>
           <div class="text-xs text-slate-400 mt-2">
-            <p>Available variables: <code class="bg-slate-700/50 px-2 py-1 rounded">{user.first_name}</code>, <code class="bg-slate-700/50 px-2 py-1 rounded">{user.name}</code>, <code class="bg-slate-700/50 px-2 py-1 rounded">{user.email}</code></p>
+            <p>Available variables: <code class="bg-slate-700/50 px-2 py-1 rounded">{first_name}</code>, <code class="bg-slate-700/50 px-2 py-1 rounded">{name}</code>, <code class="bg-slate-700/50 px-2 py-1 rounded">{email}</code></p>
           </div>
         </div>
 
@@ -281,6 +312,12 @@
                 </button>
               </div>
               
+              <div>
+                <label class="block text-xs text-slate-400 mb-1">Subject</label>
+                <input v-model="step.subject" type="text" placeholder="Step subject (optional)"
+                       class="w-full bg-slate-600/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors">
+              </div>
+              
               <textarea v-model="step.message" :placeholder="`Step ${index + 1} message...`"
                         class="w-full bg-slate-600/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors h-24 resize-none"></textarea>
               
@@ -291,7 +328,7 @@
                          class="w-full bg-slate-600/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors">
                 </div>
                 <div class="text-xs text-slate-400 pt-6">
-                  <p>Variables: <code class="bg-slate-700/50 px-2 py-1 rounded">{user.first_name}</code></p>
+                  <p>Variables: <code class="bg-slate-700/50 px-2 py-1 rounded">{first_name}</code>, <code class="bg-slate-700/50 px-2 py-1 rounded">{name}</code>, <code class="bg-slate-700/50 px-2 py-1 rounded">{email}</code></p>
                 </div>
               </div>
             </div>
@@ -602,6 +639,7 @@ const updateFrequencyDays = () => {
 // Step management functions
 const addStep = () => {
   newCampaign.value.steps.push({
+    subject: '',
     message: '',
     delay_days: 0
   })
@@ -648,7 +686,11 @@ const editCampaign = (campaign) => {
     timezone: campaign.timezone || 'contact',
     message_template: campaign.message_template || '',
     start_immediately: campaign.start_immediately || 'scheduled',
-    steps: campaign.steps || []
+    steps: (campaign.steps || []).map(step => ({
+      subject: step.subject || '',
+      message: step.message || '',
+      delay_days: step.delay_days || 0
+    }))
   }
   
   // Handle yearly date input - convert MM-DD to YYYY-MM-DD for date input
@@ -717,12 +759,8 @@ const initializeAssignments = async () => {
 
 const loadCampaignAssignments = async (campaignId) => {
   try {
-    const API_BASE = 'http://localhost:8001/api'
-    const response = await fetch(`${API_BASE}/campaigns/${campaignId}/assignments/`)
-    if (response.ok) {
-      const data = await response.json()
-      campaignAssignments.value[campaignId] = data
-    }
+    const data = await apiCall(`/campaigns/${campaignId}/assignments/`)
+    campaignAssignments.value[campaignId] = data
   } catch (error) {
     console.error('Error loading assignments:', error)
   }
@@ -829,13 +867,11 @@ const handleAddAssignment = async () => {
   try {
     const contactCount = selectedContactIds.value.length
     showStatusWithProgressLocal(`Adding ${contactCount} contact${contactCount !== 1 ? 's' : ''} to campaign...`, 3000)
-    const API_BASE = 'http://localhost:8001/api'
     
     // Create assignments for all selected contacts
     const promises = selectedContactIds.value.map(contactId => 
-      fetch(`${API_BASE}/campaigns/${selectedCampaignForAssignment.value.id}/assignments/`, {
+      apiCall(`/campaigns/${selectedCampaignForAssignment.value.id}/assignments/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contact: parseInt(contactId),
           status: 'active'
@@ -844,7 +880,7 @@ const handleAddAssignment = async () => {
     )
     
     const results = await Promise.allSettled(promises)
-    const successful = results.filter(r => r.status === 'fulfilled' && r.value.ok).length
+    const successful = results.filter(r => r.status === 'fulfilled').length
     const failed = results.length - successful
     
     await loadCampaignAssignments(selectedCampaignForAssignment.value.id)
@@ -866,17 +902,9 @@ const handleAddAssignment = async () => {
 const editNextMessage = async (campaign) => {
   // Reload campaign to get latest data including next_message_override
   try {
-    const API_BASE = 'http://localhost:8001/api'
-    const response = await fetch(`${API_BASE}/campaigns/${campaign.id}/`)
-    if (response.ok) {
-      const updatedCampaign = await response.json()
-      selectedCampaignForNextMessage.value = updatedCampaign
-      nextMessageOverride.value = updatedCampaign.next_message_override || ''
-    } else {
-      // Fallback to current campaign data
-      selectedCampaignForNextMessage.value = campaign
-      nextMessageOverride.value = campaign.next_message_override || ''
-    }
+    const updatedCampaign = await apiCall(`/campaigns/${campaign.id}/`)
+    selectedCampaignForNextMessage.value = updatedCampaign
+    nextMessageOverride.value = updatedCampaign.next_message_override || ''
   } catch (error) {
     console.error('Error loading campaign:', error)
     // Fallback to current campaign data
@@ -920,18 +948,13 @@ const removeAssignment = async (assignmentId, campaignId) => {
   
   try {
     showStatusWithProgressLocal('Removing assignment...', 3000)
-    const API_BASE = 'http://localhost:8001/api'
-    const response = await fetch(`${API_BASE}/campaigns/${campaignId}/assignments/${assignmentId}/`, {
+    await apiCall(`/campaigns/${campaignId}/assignments/${assignmentId}/`, {
       method: 'DELETE'
     })
     
-    if (response.ok) {
-      await loadCampaignAssignments(campaignId)
-      await loadCampaigns() // Reload to update assignment counts
-      showStatusWithProgressLocal('Assignment removed successfully!', 5000)
-    } else {
-      throw new Error('Failed to remove assignment')
-    }
+    await loadCampaignAssignments(campaignId)
+    await loadCampaigns() // Reload to update assignment counts
+    showStatusWithProgressLocal('Assignment removed successfully!', 5000)
   } catch (error) {
     console.error('Error removing assignment:', error)
     showStatusWithProgressLocal(`Error: ${error.message}`, 5000)
@@ -994,14 +1017,12 @@ const handleSendMessageFromProfile = (messageData) => {
 
 const loadContactAssignments = async (contactId) => {
   try {
-    const API_BASE = 'http://localhost:8001/api'
     const allAssignments = []
     
     // Load assignments from all campaigns
     for (const campaign of campaigns.value) {
-      const response = await fetch(`${API_BASE}/campaigns/${campaign.id}/assignments/`)
-      if (response.ok) {
-        const assignments = await response.json()
+      try {
+        const assignments = await apiCall(`/campaigns/${campaign.id}/assignments/`)
         // Filter for this contact and add campaign info
         const contactAssigns = assignments
           .filter(a => a.contact === contactId)
@@ -1012,6 +1033,8 @@ const loadContactAssignments = async (contactId) => {
             campaign_type: campaign.campaign_type
           }))
         allAssignments.push(...contactAssigns)
+      } catch (error) {
+        console.error(`Error loading assignments for campaign ${campaign.id}:`, error)
       }
     }
     

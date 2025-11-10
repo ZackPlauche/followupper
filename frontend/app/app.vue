@@ -26,25 +26,56 @@
 </template>
 
 <script setup>
+import { useRoute } from 'vue-router'
+import { watch } from 'vue'
+
 const { initializeApp } = useApi()
-const isInitializing = ref(true)
-const showContent = ref(false)
+const route = useRoute()
+const isInitializing = ref(false)
+const showContent = ref(true)
+const hasInitialized = ref(false)
+
+// Public routes that don't need data initialization
+const publicRoutes = ['/', '/login', '/interest', '/reset-password', '/thank-you']
+
+const initializeIfNeeded = async (path) => {
+  // Only initialize data if we're on a protected route and haven't initialized yet
+  if (!publicRoutes.includes(path) && !hasInitialized.value) {
+    isInitializing.value = true
+    showContent.value = false
+    
+    // Add a small delay to ensure API is ready
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
+    try {
+      await initializeApp()
+      hasInitialized.value = true
+    } catch (error) {
+      console.error('Error initializing app:', error)
+    } finally {
+      // First hide loading screen
+      isInitializing.value = false
+      
+      // Then show content after loading screen has faded out
+      await new Promise(resolve => setTimeout(resolve, 300))
+      showContent.value = true
+    }
+  } else if (publicRoutes.includes(path)) {
+    // On public routes, just show content
+    showContent.value = true
+  }
+}
 
 onMounted(async () => {
-  // Add a small delay to ensure API is ready
-  await new Promise(resolve => setTimeout(resolve, 1000))
-  
-  try {
-    await initializeApp()
-  } catch (error) {
-    console.error('Error initializing app:', error)
-  } finally {
-    // First hide loading screen
-    isInitializing.value = false
-    
-    // Then show content after loading screen has faded out
-    await new Promise(resolve => setTimeout(resolve, 600))
-    showContent.value = true
+  await initializeIfNeeded(route.path)
+})
+
+// Watch for route changes and initialize if needed
+watch(() => route.path, async (newPath, oldPath) => {
+  // Initialize if moving from public to protected route
+  if (publicRoutes.includes(oldPath) && !publicRoutes.includes(newPath)) {
+    hasInitialized.value = false // Reset flag to allow re-initialization
+    await initializeIfNeeded(newPath)
   }
 })
 </script>

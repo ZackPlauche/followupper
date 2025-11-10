@@ -12,7 +12,7 @@
     <div class="flex gap-8">
       <!-- Side Navigation (Desktop Only) -->
       <aside class="hidden lg:block w-64 flex-shrink-0">
-        <div class="sticky top-6">
+        <div class="sticky top-6 border-r border-slate-600/30 pr-6">
           <nav>
             <ul class="space-y-1">
               <li>
@@ -65,7 +65,7 @@
           <div>
             <label class="block text-sm font-light text-slate-300 mb-2">Your Timezone</label>
             <select v-model="userConfig.timezone"
-              class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 focus:border-emerald-400 focus:outline-none transition-colors">
+              class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 focus:border-emerald-400 focus:outline-none transition-colors [&>option]:bg-slate-700 [&>option]:text-slate-100">
               <option value="UTC">UTC</option>
               <option value="America/New_York">Eastern Time (ET)</option>
               <option value="America/Chicago">Central Time (CT)</option>
@@ -87,6 +87,41 @@
               class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors resize-none"
               placeholder="Message footer"></textarea>
             <p class="mt-2 text-xs text-slate-400 font-light">This footer will be used as the default for message chains. You can override it per chain.</p>
+          </div>
+        </div>
+        
+        <!-- Password Change Section -->
+        <div class="mt-8 pt-8 border-t border-slate-600/30">
+          <h4 class="text-lg font-light text-slate-200 mb-4">Change Password</h4>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-light text-slate-300 mb-2">Current Password</label>
+              <input v-model="passwordChange.currentPassword" type="password"
+                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors"
+                placeholder="Enter current password">
+            </div>
+            <div>
+              <label class="block text-sm font-light text-slate-300 mb-2">New Password</label>
+              <input v-model="passwordChange.newPassword" type="password"
+                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors"
+                placeholder="Enter new password">
+            </div>
+            <div>
+              <label class="block text-sm font-light text-slate-300 mb-2">Confirm New Password</label>
+              <input v-model="passwordChange.confirmPassword" type="password"
+                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors"
+                placeholder="Confirm new password">
+            </div>
+            <div v-if="passwordError" class="text-red-400 text-sm">{{ passwordError }}</div>
+            <div v-if="passwordSuccess" class="text-emerald-400 text-sm">{{ passwordSuccess }}</div>
+            <button @click="handleChangePassword" 
+              :disabled="!passwordChange.currentPassword || !passwordChange.newPassword || !passwordChange.confirmPassword"
+              class="px-6 py-3 rounded-xl font-light transition-all duration-300"
+              :class="passwordChange.currentPassword && passwordChange.newPassword && passwordChange.confirmPassword 
+                ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-white hover:shadow-lg' 
+                : 'bg-gradient-to-r from-emerald-500/30 to-cyan-500/30 text-emerald-200 cursor-not-allowed'">
+              Change Password
+            </button>
           </div>
         </div>
 
@@ -288,6 +323,61 @@
         </div>
       </div>
 
+      <!-- Interest Submissions Section (Superuser Only) -->
+      <div v-if="isSuperuser" id="interest-submissions"
+        class="bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-2xl border border-emerald-500/20 p-8 scroll-mt-6">
+        <div class="flex items-center mb-6">
+          <div
+            class="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center mr-4">
+            <Icon name="lucide:users" class="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h3 class="text-2xl font-thin text-slate-100">Interest Submissions</h3>
+            <p class="text-slate-400 font-light">Manage interest form submissions</p>
+          </div>
+        </div>
+
+        <div v-if="loadingSubmissions" class="text-center py-8">
+          <Icon name="lucide:loader-2" class="w-8 h-8 text-emerald-400 animate-spin mx-auto" />
+          <p class="text-slate-400 mt-4">Loading submissions...</p>
+        </div>
+
+        <div v-else-if="interestSubmissions.length === 0" class="text-center py-8">
+          <p class="text-slate-400">No interest submissions yet.</p>
+        </div>
+
+        <div v-else class="space-y-4">
+          <div v-for="submission in interestSubmissions" :key="submission.id"
+            class="bg-slate-700/50 rounded-xl p-6 border border-slate-600/30">
+            <div class="flex justify-between items-start mb-4">
+              <div>
+                <h4 class="text-lg font-light text-slate-100">{{ submission.name }}</h4>
+                <p class="text-sm text-slate-400">{{ submission.email }}</p>
+                <p class="text-xs text-slate-500 mt-1">{{ formatDate(submission.created_at) }}</p>
+              </div>
+              <select v-model="submission.status" @change="updateSubmissionStatus(submission)"
+                class="bg-slate-600 border border-emerald-500/30 rounded-lg px-3 py-1 text-sm text-slate-100">
+                <option value="pending">Pending</option>
+                <option value="contacted">Contacted</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </div>
+            
+            <div v-if="submission.message" class="mb-4">
+              <p class="text-sm text-slate-300 font-light whitespace-pre-wrap">{{ submission.message }}</p>
+            </div>
+
+            <div>
+              <label class="block text-xs font-light text-slate-400 mb-2">Internal Notes</label>
+              <textarea v-model="submission.notes" @blur="updateSubmissionNotes(submission)"
+                class="w-full bg-slate-600/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-sm text-slate-100 resize-none"
+                rows="2" placeholder="Add internal notes..."></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+
         <!-- Save Settings -->
         <div class="flex justify-center">
           <button @click="saveSettings"
@@ -326,6 +416,10 @@ useHead({
 })
 
 const { settings, loadSettings } = useApi()
+const { apiCall, apiFetch, API_BASE, getCsrfToken, ensureCsrfToken } = useApiFetch()
+const isSuperuser = ref(false)
+const interestSubmissions = ref([])
+const loadingSubmissions = ref(false)
 
 // Use global settings state
 const gmailConfig = ref({ ...settings.value.gmail })
@@ -344,6 +438,13 @@ const originalUser = ref({
   timezone: settings.value.user?.timezone || 'UTC',
   footer: settings.value.user?.footer || ''
 })
+const passwordChange = ref({
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: ''
+})
+const passwordError = ref('')
+const passwordSuccess = ref('')
 
 // Watch for changes in global settings
 watch(settings, (newSettings) => {
@@ -416,6 +517,9 @@ const handleScroll = () => {
   }
 
   const sections = ['integrations', 'automation']
+  if (isSuperuser.value) {
+    sections.push('interest-submissions')
+  }
   for (const section of sections) {
     const element = document.getElementById(section)
     if (element) {
@@ -463,31 +567,7 @@ const showStatusWithProgress = (message, duration = 5000) => {
   }, duration)
 }
 
-// API base URL
-const API_BASE = 'http://localhost:8001/api'
-
-// Generic API call with retry logic
-const apiCall = async (endpoint, options = {}, retries = 3) => {
-  for (let i = 0; i < retries; i++) {
-    try {
-      const response = await fetch(`${API_BASE}${endpoint}`, {
-        headers: { 'Content-Type': 'application/json' },
-        ...options
-      })
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || `API Error: ${response.status}`)
-      }
-      return await response.json()
-    } catch (err) {
-      console.error(`API call to ${endpoint} failed (attempt ${i + 1}/${retries}):`, err)
-      if (i === retries - 1) {
-        throw err
-      }
-      await new Promise(resolve => setTimeout(resolve, 1000))
-    }
-  }
-}
+// Using apiCall from useApiFetch composable (already imported above)
 
 // Test connections
 const testGmailConnection = async () => {
@@ -605,6 +685,59 @@ const saveUserSettings = async () => {
   }
 }
 
+// Using getCsrfToken and ensureCsrfToken from useApiFetch composable (already imported above)
+
+// Handle password change
+const handleChangePassword = async () => {
+  passwordError.value = ''
+  passwordSuccess.value = ''
+  
+  // Validate passwords match
+  if (passwordChange.value.newPassword !== passwordChange.value.confirmPassword) {
+    passwordError.value = 'New passwords do not match'
+    return
+  }
+  
+  // Validate password length
+  if (passwordChange.value.newPassword.length < 8) {
+    passwordError.value = 'New password must be at least 8 characters'
+    return
+  }
+  
+  try {
+    const response = await apiFetch('/auth/change-password/', {
+      method: 'POST',
+      body: JSON.stringify({
+        old_password: passwordChange.value.currentPassword,
+        new_password: passwordChange.value.newPassword
+      })
+    })
+    
+    if (response.ok) {
+      const data = await response.json()
+      passwordSuccess.value = 'Password changed successfully!'
+      passwordError.value = ''
+      // Clear form
+      passwordChange.value = {
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      }
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        passwordSuccess.value = ''
+      }, 3000)
+    } else {
+      passwordError.value = data.error || 'Failed to change password'
+      passwordSuccess.value = ''
+    }
+  } catch (error) {
+    console.error('Error changing password:', error)
+    passwordError.value = 'An error occurred. Please try again.'
+    passwordSuccess.value = ''
+  }
+}
+
 // Save all settings at once
 const saveSettings = async () => {
   try {
@@ -696,10 +829,74 @@ onMounted(() => {
     }
   }
 
+  // Check if user is superuser and load submissions
+  checkSuperuser()
+
   // Set up scroll tracking for side navigation
   window.addEventListener('scroll', handleScroll)
   handleScroll() // Initial check
 })
+
+const checkSuperuser = async () => {
+  try {
+    const response = await fetch(`${API_BASE}/auth/current-user/`, {
+      credentials: 'include'
+    })
+    if (response.ok) {
+      const data = await response.json()
+      isSuperuser.value = data.is_superuser || false
+      if (isSuperuser.value) {
+        loadInterestSubmissions()
+      }
+    }
+  } catch (error) {
+    console.error('Error checking superuser status:', error)
+  }
+}
+
+const loadInterestSubmissions = async () => {
+  loadingSubmissions.value = true
+  try {
+    const data = await apiCall('/interest-submissions/')
+    interestSubmissions.value = data
+  } catch (error) {
+    console.error('Error loading interest submissions:', error)
+  } finally {
+    loadingSubmissions.value = false
+  }
+}
+
+const updateSubmissionStatus = async (submission) => {
+  try {
+    await apiCall(`/interest-submissions/${submission.id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: submission.status })
+    })
+  } catch (error) {
+    console.error('Error updating submission status:', error)
+  }
+}
+
+const updateSubmissionNotes = async (submission) => {
+  try {
+    await apiCall(`/interest-submissions/${submission.id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify({ notes: submission.notes })
+    })
+  } catch (error) {
+    console.error('Error updating submission notes:', error)
+  }
+}
+
+const formatDate = (dateString) => {
+  if (!dateString) return ''
+  try {
+    const date = new Date(dateString)
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  } catch (e) {
+    return dateString
+  }
+}
 
 onUnmounted(() => {
   window.removeEventListener('scroll', handleScroll)

@@ -37,14 +37,13 @@ const loadContactData = async () => {
 
 const loadContactAssignments = async (contactId) => {
   try {
-    const API_BASE = 'http://localhost:8001/api'
+    const { apiCall } = useApiFetch()
     const allAssignments = []
     
     // Load assignments from all campaigns
     for (const campaign of api.campaigns.value) {
-      const response = await fetch(`${API_BASE}/campaigns/${campaign.id}/assignments/`)
-      if (response.ok) {
-        const assignments = await response.json()
+      try {
+        const assignments = await apiCall(`/campaigns/${campaign.id}/assignments/`)
         const contactAssigns = assignments
           .filter(a => a.contact === contactId && a.next_send_date && a.status === 'active')
           .map(a => ({
@@ -54,6 +53,8 @@ const loadContactAssignments = async (contactId) => {
             campaign_type: campaign.campaign_type
           }))
         allAssignments.push(...contactAssigns)
+      } catch (error) {
+        console.error(`Error loading assignments for campaign ${campaign.id}:`, error)
       }
     }
     

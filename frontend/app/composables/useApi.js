@@ -1,5 +1,8 @@
 // Global state management for API data
 export const useApi = () => {
+  // Use the API fetch composable
+  const { apiCallWithRetry } = useApiFetch()
+
   // Global reactive state using Nuxt's useState
   const contacts = useState('contacts', () => [])
   const templates = useState('templates', () => [])
@@ -14,9 +17,6 @@ export const useApi = () => {
   const isLoading = useState('isLoading', () => false)
   const error = useState('error', () => null)
 
-  // API base URL
-  const API_BASE = 'http://localhost:8001/api'
-
   // Status message helper
   const showStatus = (message, duration = 5000) => {
     // This will be handled by individual pages
@@ -29,49 +29,9 @@ export const useApi = () => {
     console.log('Status with progress:', message)
   }
 
-  // Generic API call with retry logic
+  // Generic API call with retry logic (wrapper for backward compatibility)
   const apiCall = async (endpoint, options = {}, retries = 3) => {
-    for (let i = 0; i < retries; i++) {
-      try {
-        const response = await fetch(`${API_BASE}${endpoint}`, {
-          headers: {
-            'Content-Type': 'application/json',
-            ...options.headers
-          },
-          ...options
-        })
-        
-        if (response.ok) {
-          return await response.json()
-        }
-        
-        // Try to extract error message from response body
-        let errorMessage = `API Error: ${response.status}`
-        try {
-          const errorData = await response.json()
-          if (errorData.error) {
-            errorMessage = errorData.error
-          } else if (errorData.message) {
-            errorMessage = errorData.message
-          }
-        } catch (e) {
-          // If response is not JSON, use status code
-        }
-        
-        if (i === retries - 1) {
-          const error = new Error(errorMessage)
-          error.status = response.status
-          error.response = response
-          throw error
-        }
-      } catch (error) {
-        console.error(`API call failed (attempt ${i + 1}):`, error)
-        if (i === retries - 1) {
-          throw error
-        }
-        await new Promise(resolve => setTimeout(resolve, 1000))
-      }
-    }
+    return await apiCallWithRetry(endpoint, options, retries, true)
   }
 
   // Load contacts
@@ -284,7 +244,7 @@ export const useApi = () => {
     }
   }
 
-  // Send email
+  // Send email (legacy - kept for backward compatibility)
   const sendEmail = async (emailData) => {
     try {
       const result = await apiCall('/settings/send-email/', {
@@ -294,6 +254,23 @@ export const useApi = () => {
       return result
     } catch (error) {
       console.error('Error sending email:', error)
+      throw error
+    }
+  }
+
+  // Send message via multiple platforms
+  const sendMessage = async (contactId, messageData) => {
+    try {
+      const result = await apiCall('/settings/send-message/', {
+        method: 'POST',
+        body: JSON.stringify({
+          contact_id: contactId,
+          ...messageData
+        })
+      })
+      return result
+    } catch (error) {
+      console.error('Error sending message:', error)
       throw error
     }
   }
@@ -369,6 +346,7 @@ export const useApi = () => {
     updateCampaign,
     deleteCampaign,
     sendEmail,
+    sendMessage,
     refreshAll,
     showStatus,
     showStatusWithProgress

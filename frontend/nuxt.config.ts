@@ -12,5 +12,12 @@ export default defineNuxtConfig({
     cssPath: '~/assets/css/tailwind.css',
     configPath: 'tailwind.config.js',
     viewer: true,
+  },
+  runtimeConfig: {
+    // Private keys (only available on server-side)
+    // Public keys (exposed to client-side)
+    public: {
+      apiBase: import.meta.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8001/api'
+    }
   }
 })

@@ -7,14 +7,73 @@ from dateutil.relativedelta import relativedelta
 import pytz
 from .models import (
     Contact, MessageTemplate, ScheduledFollowup, PlatformCredentials,
-    Campaign, CampaignStep, CampaignAssignment, UserSettings, AutomationSettings
+    Campaign, CampaignStep, CampaignAssignment, UserSettings, AutomationSettings,
+    MessageSequence, Message
 )
 
 
 class ContactSerializer(serializers.ModelSerializer):
+    # platform_preference is now a JSONField, so it automatically handles list/array
+    # But we still need to handle legacy string format for backwards compatibility
+    platform_preference = serializers.SerializerMethodField()
+
     class Meta:
         model = Contact
         fields = '__all__'
+
+    def get_platform_preference(self, obj):
+        """Return platform_preference as array, handling both JSONField (list) and legacy string format."""
+        if not obj.platform_preference:
+            return []
+        
+        # JSONField stores as list directly, but handle legacy string format
+        if isinstance(obj.platform_preference, list):
+            return obj.platform_preference
+        elif isinstance(obj.platform_preference, str):
+            # Legacy format or JSON string
+            try:
+                import json
+                parsed = json.loads(obj.platform_preference)
+                if isinstance(parsed, list):
+                    return parsed
+            except (json.JSONDecodeError, TypeError):
+                pass
+            # Legacy string format
+            if obj.platform_preference == 'both':
+                return ['email', 'codementor']
+            elif obj.platform_preference in ['email', 'codementor']:
+                return [obj.platform_preference]
+        
+        return []
+
+    def to_internal_value(self, data):
+        """Ensure platform_preference is stored as a list (JSONField handles JSON conversion)."""
+        if 'platform_preference' in data:
+            pref = data['platform_preference']
+            # JSONField expects a list, so ensure it's a list
+            if isinstance(pref, str):
+                # Try to parse as JSON first
+                try:
+                    import json
+                    parsed = json.loads(pref)
+                    if isinstance(parsed, list):
+                        data['platform_preference'] = parsed
+                    else:
+                        # Legacy format
+                        if pref == 'both':
+                            data['platform_preference'] = ['email', 'codementor']
+                        else:
+                            data['platform_preference'] = [pref] if pref else []
+                except (json.JSONDecodeError, TypeError):
+                    # Not JSON, treat as legacy format
+                    if pref == 'both':
+                        data['platform_preference'] = ['email', 'codementor']
+                    else:
+                        data['platform_preference'] = [pref] if pref else []
+            elif not isinstance(pref, list):
+                # Not a list, convert to list
+                data['platform_preference'] = []
+        return super().to_internal_value(data)
 
 
 class MessageTemplateSerializer(serializers.ModelSerializer):
@@ -276,4 +335,35 @@ class UserSettingsSerializer(serializers.ModelSerializer):
 class AutomationSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = AutomationSettings
+        fields = '__all__'
+
+
+class InterestSubmissionSerializer(serializers.ModelSerializer):
+    class Meta:
+        from .models import InterestSubmission
+        model = InterestSubmission
+        fields = '__all__'
+        read_only_fields = ['created_at', 'updated_at']
+
+
+class MessageSequenceSerializer(serializers.ModelSerializer):
+    contact_name = serializers.CharField(source='contact.name', read_only=True)
+    messages = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MessageSequence
+        fields = '__all__'
+
+    def get_messages(self, obj):
+        """Return messages in this sequence ordered by order field."""
+        return MessageSerializer(obj.messages.all().order_by('order'), many=True).data
+
+
+class MessageSerializer(serializers.ModelSerializer):
+    contact_name = serializers.CharField(source='contact.name', read_only=True)
+    sequence_id = serializers.IntegerField(source='sequence.id', read_only=True, allow_null=True)
+    campaign_name = serializers.CharField(source='campaign.name', read_only=True, allow_null=True)
+
+    class Meta:
+        model = Message
         fields = '__all__'

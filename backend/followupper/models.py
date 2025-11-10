@@ -3,19 +3,30 @@ Django models for Followupper application.
 """
 from django.db import models
 from django.utils import timezone
+from django.contrib.auth.models import User
 import json
+import pyotp
+import secrets
 
 
 class Contact(models.Model):
     """Contact model for storing client information."""
+    GENDER_CHOICES = [
+        ('', 'Not specified'),
+        ('male', 'Male'),
+        ('female', 'Female'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='contacts', null=True, blank=True, db_index=True, help_text="User who owns this contact")
     name = models.CharField(max_length=255, db_index=True)
+    preferred_name = models.CharField(max_length=255, blank=True, help_text="Preferred name/nickname to use instead of first name")
+    gender = models.CharField(max_length=10, choices=GENDER_CHOICES, default='', blank=True)
     email = models.EmailField(unique=True, db_index=True, null=True, blank=True)
     codementor_username = models.CharField(max_length=255, unique=True, db_index=True, null=True, blank=True)
-    platform_preference = models.CharField(max_length=50, default='email')
+    platform_preference = models.JSONField(default=list, blank=True)  # List of platform preferences
     timezone = models.CharField(max_length=50, default='UTC', blank=True)
-    last_contact_date = models.DateTimeField(null=True, blank=True)
+    last_messaged = models.DateTimeField(null=True, blank=True, db_index=True, help_text="Date and time of the most recent sent message")
     notes = models.TextField(blank=True)
-    message_chains = models.TextField(blank=True)  # JSON field for storing one-off message chains
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -29,6 +40,9 @@ class Contact(models.Model):
 
     @property
     def first_name(self):
+        """Return preferred_name if set, otherwise first word of name."""
+        if self.preferred_name:
+            return self.preferred_name
         if not self.name:
             return ""
         return self.name.split()[0] if self.name else ""
@@ -38,12 +52,16 @@ class Contact(models.Model):
             'user': {
                 'name': self.name or '',
                 'first_name': self.first_name,
+                'preferred_name': self.preferred_name or self.first_name,
+                'gender': self.gender or '',
                 'email': self.email or '',
                 'codementor_username': self.codementor_username or '',
             },
             'contact': {
                 'name': self.name or '',
                 'first_name': self.first_name,
+                'preferred_name': self.preferred_name or self.first_name,
+                'gender': self.gender or '',
                 'email': self.email or '',
                 'codementor_username': self.codementor_username or '',
             }
@@ -55,6 +73,7 @@ class MessageTemplate(models.Model):
     name = models.CharField(max_length=255, db_index=True)
     subject = models.CharField(max_length=500, blank=True)
     body = models.TextField()
+    footer = models.TextField(blank=True, help_text="Footer/signature for emails only")
     is_default = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -233,7 +252,7 @@ class UserSettings(models.Model):
 
 class AutomationSettings(models.Model):
     """Automation settings model for storing scheduler configuration."""
-    enabled = models.BooleanField(default=False)
+    enabled = models.BooleanField(default=True)
     check_interval = models.IntegerField(default=15, help_text="Check interval in minutes (minimum 1 minute)")
     max_retries = models.IntegerField(default=3)
     timezone = models.CharField(max_length=50, default='UTC', blank=True)
@@ -257,3 +276,148 @@ class AutomationSettings(models.Model):
     def get_check_interval(self):
         """Get check interval, enforcing minimum of 1 minute for accuracy."""
         return max(1, self.check_interval)
+
+
+class MessageSequence(models.Model):
+    """Message sequence/chain model for grouping related messages."""
+    contact = models.ForeignKey(Contact, on_delete=models.CASCADE, related_name='message_sequences', db_index=True)
+    timing_type = models.CharField(max_length=20, default='specific')  # 'interval' or 'specific'
+    chain_start_date = models.DateField(null=True, blank=True)  # For interval chains
+    chain_start_time = models.TimeField(null=True, blank=True)  # For interval chains
+    chain_timezone = models.CharField(max_length=50, null=True, blank=True)  # For interval chains
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'message_sequences'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Message Sequence {self.id} - {self.contact.name}"
+
+
+class Message(models.Model):
+    """Unified message model for all message types (campaigns, sequences, one-offs, history)."""
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('sent', 'Sent'),
+        ('cancelled', 'Cancelled'),
+        ('failed', 'Failed'),
+    ]
+
+    # Core message content
+    contact = models.ForeignKey(Contact, on_delete=models.CASCADE, related_name='messages', db_index=True)
+    subject = models.CharField(max_length=500, blank=True)
+    body = models.TextField()
+    platforms = models.JSONField(default=list)  # List of platforms to send via
+
+    # Status
+    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='pending', db_index=True)
+    sent_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    
+    # Email threading - store Gmail message ID for reply threading
+    email_message_id = models.CharField(max_length=500, null=True, blank=True, db_index=True)
+
+    # Scheduling (for pending messages)
+    send_date = models.DateField(null=True, blank=True, db_index=True)  # For specific timing
+    send_time = models.TimeField(null=True, blank=True)  # For specific timing
+    timezone = models.CharField(max_length=50, null=True, blank=True)  # For specific timing
+    frequency_days = models.IntegerField(default=0)  # Days after previous message (for interval)
+
+    # Relationships - message can belong to a sequence, campaign, or be standalone
+    sequence = models.ForeignKey(MessageSequence, on_delete=models.CASCADE, related_name='messages', null=True, blank=True, db_index=True)
+    order = models.IntegerField(default=0)  # Order within sequence (if part of sequence)
+    campaign = models.ForeignKey('Campaign', on_delete=models.SET_NULL, related_name='messages', null=True, blank=True, db_index=True)
+    campaign_assignment = models.ForeignKey('CampaignAssignment', on_delete=models.SET_NULL, related_name='messages', null=True, blank=True, db_index=True)
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'messages'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['contact', 'status']),
+            models.Index(fields=['status', 'send_date', 'send_time']),
+            models.Index(fields=['sequence', 'order']),
+        ]
+
+    def __str__(self):
+        return f"Message {self.id} - {self.contact.name} ({self.status})"
+
+
+class UserProfile(models.Model):
+    """Extended user profile for 2FA and additional features."""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    two_factor_enabled = models.BooleanField(default=False)
+    two_factor_secret = models.CharField(max_length=32, blank=True)
+    password_reset_token = models.CharField(max_length=100, blank=True, null=True)
+    password_reset_expires = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'user_profiles'
+
+    def __str__(self):
+        return f"Profile for {self.user.username}"
+
+    def generate_2fa_secret(self):
+        """Generate a new 2FA secret."""
+        secret = pyotp.random_base32()
+        self.two_factor_secret = secret
+        self.save()
+        return secret
+
+    def get_2fa_qr_url(self):
+        """Get QR code URL for 2FA setup."""
+        if not self.two_factor_secret:
+            return None
+        totp = pyotp.TOTP(self.two_factor_secret)
+        return totp.provisioning_uri(
+            name=self.user.email or self.user.username,
+            issuer_name='Followupper'
+        )
+
+    def verify_2fa_token(self, token):
+        """Verify a 2FA token."""
+        if not self.two_factor_enabled or not self.two_factor_secret:
+            return False
+        totp = pyotp.TOTP(self.two_factor_secret)
+        return totp.verify(token, valid_window=1)
+
+    def generate_password_reset_token(self):
+        """Generate a password reset token."""
+        token = secrets.token_urlsafe(32)
+        self.password_reset_token = token
+        self.password_reset_expires = timezone.now() + timezone.timedelta(hours=1)
+        self.save()
+        return token
+
+
+class InterestSubmission(models.Model):
+    """Model for storing interest form submissions."""
+    name = models.CharField(max_length=255)
+    email = models.EmailField(db_index=True)
+    message = models.TextField(blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('pending', 'Pending'),
+            ('contacted', 'Contacted'),
+            ('approved', 'Approved'),
+            ('rejected', 'Rejected'),
+        ],
+        default='pending',
+        db_index=True
+    )
+    notes = models.TextField(blank=True, help_text="Internal notes for admin")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'interest_submissions'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.name} ({self.email}) - {self.status}"

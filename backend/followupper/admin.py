@@ -1,7 +1,8 @@
 from django.contrib import admin
 from .models import (
     Contact, MessageTemplate, ScheduledFollowup, PlatformCredentials,
-    Campaign, CampaignStep, CampaignAssignment, UserSettings, AutomationSettings
+    Campaign, CampaignStep, CampaignAssignment, UserSettings, AutomationSettings,
+    MessageSequence, Message
 )
 
 
@@ -75,3 +76,19 @@ class AutomationSettingsAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(MessageSequence)
+class MessageSequenceAdmin(admin.ModelAdmin):
+    list_display = ['id', 'contact', 'timing_type', 'created_at']
+    list_filter = ['timing_type', 'created_at']
+    search_fields = ['contact__name', 'contact__email']
+    readonly_fields = ['created_at', 'updated_at']
+
+
+@admin.register(Message)
+class MessageAdmin(admin.ModelAdmin):
+    list_display = ['id', 'contact', 'subject', 'status', 'send_date', 'send_time', 'sent_at', 'sequence', 'campaign']
+    list_filter = ['status', 'send_date', 'sent_at', 'sequence', 'campaign']
+    search_fields = ['contact__name', 'subject', 'body']
+    readonly_fields = ['created_at', 'updated_at']

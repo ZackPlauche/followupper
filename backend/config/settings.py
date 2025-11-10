@@ -11,6 +11,12 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
+from dotenv import load_dotenv
+import dj_database_url
+
+# Load environment variables
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,10 +26,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-q_&t!ifun-@0yl@_8gu=%c&!cg2w@6q01icvcm%bfkwb4&knd+"
+SECRET_KEY = os.getenv('SECRET_KEY', "django-insecure-q_&t!ifun-@0yl@_8gu=%c&!cg2w@6q01icvcm%bfkwb4&knd+")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
 ALLOWED_HOSTS = ['*']
 
@@ -78,10 +84,10 @@ WSGI_APPLICATION = "config.wsgi.application"
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR.parent / "followupper.db",
-    }
+    'default': dj_database_url.config(
+        default=f'sqlite:///{BASE_DIR.parent / "followupper.db"}',
+        conn_max_age=600
+    )
 }
 
 
@@ -135,6 +141,13 @@ REST_FRAMEWORK = {
         'rest_framework.parsers.JSONParser',
     ],
     'DEFAULT_PAGINATION_CLASS': None,
+    # Allow unauthenticated access for backward compatibility (data is global, not user-specific)
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',
+    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+    ],
 }
 
 # CORS settings
@@ -143,7 +156,34 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:4000",
 ]
 
-CORS_ALLOW_ALL_ORIGINS = DEBUG
+# Must be False when using credentials - can't use wildcard with credentials
+CORS_ALLOW_ALL_ORIGINS = False
+
+# Allow credentials (cookies, authorization headers)
+CORS_ALLOW_CREDENTIALS = True
+
+# Allow common headers
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# CSRF settings for API
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:4000',
+    'http://127.0.0.1:4000',
+]
+
+# Exempt API views from CSRF (REST Framework handles auth differently)
+CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read CSRF token
+CSRF_COOKIE_SAMESITE = 'Lax'
 
 # Logging
 LOGGING = {
@@ -165,14 +205,17 @@ LOGGING = {
         'django': {
             'handlers': ['console'],
             'level': 'INFO',
+            'propagate': False,
         },
         'django.request': {
             'handlers': ['console'],
             'level': 'DEBUG',
+            'propagate': False,
         },
         'followupper': {
             'handlers': ['console'],
             'level': 'INFO',
+            'propagate': False,
         },
     },
     'root': {
