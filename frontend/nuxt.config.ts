@@ -13,6 +13,12 @@ export default defineNuxtConfig({
     configPath: 'tailwind.config.js',
     viewer: true,
   },
+  // For static site generation on Netlify
+  nitro: {
+    prerender: {
+      crawlLinks: true
+    }
+  },
   runtimeConfig: {
     // Private keys (only available on server-side)
     // Public keys (exposed to client-side)

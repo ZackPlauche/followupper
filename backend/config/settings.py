@@ -151,10 +151,10 @@ REST_FRAMEWORK = {
 }
 
 # CORS settings
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:4000",
-    "http://127.0.0.1:4000",
-]
+# Read from environment variable - comma-separated list of origins
+# Example: CORS_ALLOWED_ORIGINS=http://localhost:4000,https://your-app.netlify.app
+cors_origins_env = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:4000,http://127.0.0.1:4000')
+CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
 
 # Must be False when using credentials - can't use wildcard with credentials
 CORS_ALLOW_ALL_ORIGINS = False
@@ -175,11 +175,8 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
-# CSRF settings for API
-CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:4000',
-    'http://127.0.0.1:4000',
-]
+# CSRF settings for API - use same origins as CORS
+CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS.copy()
 
 # Exempt API views from CSRF (REST Framework handles auth differently)
 CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read CSRF token
