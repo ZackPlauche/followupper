@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 import dj_database_url
 
 # Load environment variables
-load_dotenv()
+load_dotenv(override=True)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -249,13 +249,13 @@ CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS.copy()
 
 # Exempt API views from CSRF (REST Framework handles auth differently)
 CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read CSRF token
-CSRF_COOKIE_SAMESITE = 'Lax'  # Allow cross-domain cookies
+CSRF_COOKIE_SAMESITE = 'None'  # Allow cross-domain cookies
 CSRF_COOKIE_SECURE = True  # Required when SameSite=None (HTTPS only)
 
 # Session cookie settings for cross-domain authentication
 SESSION_COOKIE_SAMESITE = 'None'  # Allow cross-domain cookies
 SESSION_COOKIE_SECURE = True  # Required when SameSite=None (HTTPS only)
-SESSION_COOKIE_HTTPONLY = True  # Prevent XSS attacks
+SESSION_COOKIE_HTTPONLY = True  # Prevent XSS attLaxs
 
 # Logging
 LOGGING = {

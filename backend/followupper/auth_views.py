@@ -97,7 +97,12 @@ def login_view(request):
     # Login user
     login(request, user)
     
-    return Response({
+    # Ensure CSRF token is set in cookies for cross-domain requests
+    from django.middleware.csrf import get_token
+    get_token(request)
+    
+    # Create response with user data
+    response = Response({
         'message': 'Login successful',
         'user': {
             'id': user.id,
@@ -105,6 +110,20 @@ def login_view(request):
             'email': user.email
         }
     }, status=status.HTTP_200_OK)
+    
+    # Explicitly set CSRF cookie with proper settings for cross-domain
+    from django.conf import settings
+    csrf_token = get_token(request)
+    response.set_cookie(
+        'csrftoken',
+        csrf_token,
+        max_age=31449600,  # 1 year
+        httponly=False,  # Allow JavaScript to read it
+        samesite='None',
+        secure=True  # Required for SameSite=None
+    )
+    
+    return response
 
 
 @api_view(['POST'])

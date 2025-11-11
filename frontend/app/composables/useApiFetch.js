@@ -71,13 +71,36 @@ export const useApiFetch = () => {
       headers['Content-Type'] = 'application/json'
     }
 
-    // Add CSRF token if authentication is required
-    // For login/auth endpoints, we don't need CSRF token initially
-    // Django will set the CSRF cookie on the first request
-    if (requireAuth && !endpoint.includes('/auth/login/') && !endpoint.includes('/auth/current-user/')) {
-      const csrfToken = getCsrfToken() || await ensureCsrfToken()
+    // Determine if this is a state-changing request that needs CSRF protection
+    const method = (options.method || 'GET').toUpperCase()
+    const isStateChanging = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)
+    const isAuthEndpoint = endpoint.includes('/auth/login/') || endpoint.includes('/auth/register/')
+    
+    // Add CSRF token for:
+    // 1. State-changing requests (POST, PUT, DELETE, etc.) - ALWAYS need CSRF
+    // 2. Authenticated requests (unless it's login/register which don't need it initially)
+    if (isStateChanging || (requireAuth && !isAuthEndpoint)) {
+      // Try to get CSRF token, and fetch it if needed
+      let csrfToken = getCsrfToken()
+      if (!csrfToken) {
+        // For state-changing requests, we MUST have a CSRF token
+        // Try to get it by making a GET request first
+        try {
+          await fetch(`${API_BASE}/health/`, {
+            method: 'GET',
+            credentials: 'include'
+          })
+          csrfToken = getCsrfToken()
+        } catch (e) {
+          console.warn('Could not fetch CSRF token:', e)
+        }
+      }
+      
       if (csrfToken) {
         headers['X-CSRFToken'] = csrfToken
+      } else if (isStateChanging) {
+        // For state-changing requests, we MUST have CSRF token
+        console.error('CSRF token not available for state-changing request:', method, endpoint)
       }
     }
 
