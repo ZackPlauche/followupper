@@ -6,19 +6,37 @@ export const useApiFetch = () => {
   const config = useRuntimeConfig()
   const API_BASE = config.public.apiBase || 'http://localhost:8001/api'
 
+  // Store CSRF token in memory (since we can't reliably read cross-domain cookies)
+  let csrfTokenCache = null
+
   /**
-   * Get CSRF token from cookies
+   * Get CSRF token from cache or cookies
    */
   const getCsrfToken = () => {
+    // First try cache
+    if (csrfTokenCache) {
+      return csrfTokenCache
+    }
+    
+    // Then try cookies (works for same-domain)
     const name = 'csrftoken'
     const cookies = document.cookie.split(';')
     for (let cookie of cookies) {
       const [key, value] = cookie.trim().split('=')
       if (key === name) {
-        return decodeURIComponent(value)
+        const token = decodeURIComponent(value)
+        csrfTokenCache = token
+        return token
       }
     }
     return null
+  }
+  
+  /**
+   * Set CSRF token in cache
+   */
+  const setCsrfToken = (token) => {
+    csrfTokenCache = token
   }
 
   /**
@@ -110,6 +128,12 @@ export const useApiFetch = () => {
       credentials: 'include' // Always include cookies for session auth
     })
 
+    // Extract CSRF token from response headers (for cross-domain)
+    const csrfTokenFromHeader = response.headers.get('X-CSRFToken')
+    if (csrfTokenFromHeader) {
+      setCsrfToken(csrfTokenFromHeader)
+    }
+
     return response
   }
 
@@ -174,6 +198,7 @@ export const useApiFetch = () => {
     apiCall,
     apiCallWithRetry,
     getCsrfToken,
+    setCsrfToken,
     ensureCsrfToken
   }
 }

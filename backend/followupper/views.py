@@ -694,6 +694,11 @@ def health_check(request):
     
     # Explicitly set CSRF cookie with proper settings for cross-domain
     csrf_token = get_token(request)
+    
+    # Include CSRF token in response header (for cross-domain JavaScript access)
+    response['X-CSRFToken'] = csrf_token
+    
+    # Also set cookie
     response.set_cookie(
         'csrftoken',
         csrf_token,

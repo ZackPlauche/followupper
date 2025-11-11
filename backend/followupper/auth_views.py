@@ -114,6 +114,11 @@ def login_view(request):
     # Explicitly set CSRF cookie with proper settings for cross-domain
     from django.conf import settings
     csrf_token = get_token(request)
+    
+    # Include CSRF token in response header (for cross-domain JavaScript access)
+    response['X-CSRFToken'] = csrf_token
+    
+    # Also set cookie
     response.set_cookie(
         'csrftoken',
         csrf_token,
@@ -183,23 +188,38 @@ def current_user(request):
     """Get current authenticated user."""
     from django.middleware.csrf import get_token
     
+    # Get CSRF token
+    csrf_token = get_token(request)
+    
     # Check if user is authenticated
     if not request.user.is_authenticated:
-        return Response({'error': 'Not authenticated'}, status=status.HTTP_403_FORBIDDEN)
+        response = Response({'error': 'Not authenticated'}, status=status.HTTP_403_FORBIDDEN)
+    else:
+        user = request.user
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        
+        response = Response({
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'two_factor_enabled': profile.two_factor_enabled,
+            'is_superuser': user.is_superuser
+        }, status=status.HTTP_200_OK)
     
-    # Ensure CSRF token is set in cookies
-    get_token(request)
+    # Always include CSRF token in response header for cross-domain requests
+    response['X-CSRFToken'] = csrf_token
     
-    user = request.user
-    profile, _ = UserProfile.objects.get_or_create(user=user)
+    # Also set cookie
+    response.set_cookie(
+        'csrftoken',
+        csrf_token,
+        max_age=31449600,  # 1 year
+        httponly=False,  # Allow JavaScript to read it
+        samesite='None',
+        secure=True  # Required for SameSite=None
+    )
     
-    return Response({
-        'id': user.id,
-        'username': user.username,
-        'email': user.email,
-        'two_factor_enabled': profile.two_factor_enabled,
-        'is_superuser': user.is_superuser
-    }, status=status.HTTP_200_OK)
+    return response
 
 
 @api_view(['POST'])
