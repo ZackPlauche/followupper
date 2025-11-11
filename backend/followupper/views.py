@@ -6,6 +6,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
+from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Q, Count
 from django.http import HttpResponse
 import json
@@ -684,31 +685,10 @@ class MessageViewSet(viewsets.ModelViewSet):
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
+@csrf_exempt
 def health_check(request):
     """Health check endpoint."""
-    # Ensure CSRF token is set in cookies for cross-domain requests
-    from django.middleware.csrf import get_token
-    get_token(request)
-    
-    response = Response({'status': 'healthy', 'message': 'Followupper API is running'})
-    
-    # Explicitly set CSRF cookie with proper settings for cross-domain
-    csrf_token = get_token(request)
-    
-    # Include CSRF token in response header (for cross-domain JavaScript access)
-    response['X-CSRFToken'] = csrf_token
-    
-    # Also set cookie
-    response.set_cookie(
-        'csrftoken',
-        csrf_token,
-        max_age=31449600,  # 1 year
-        httponly=False,  # Allow JavaScript to read it
-        samesite='None',
-        secure=True  # Required for SameSite=None
-    )
-    
-    return response
+    return Response({'status': 'healthy', 'message': 'Followupper API is running'})
 
 
 class InterestSubmissionViewSet(viewsets.ModelViewSet):

@@ -6,6 +6,15 @@ import time
 from django.utils.deprecation import MiddlewareMixin
 
 
+class CSRFExemptAPI(MiddlewareMixin):
+    """Exempt all /api/ routes from CSRF checks (since this is an API, not server-rendered forms)."""
+    
+    def process_request(self, request):
+        """Exempt API routes from CSRF."""
+        if request.path.startswith('/api/'):
+            setattr(request, '_dont_enforce_csrf_checks', True)
+
+
 class RequestLoggingMiddleware(MiddlewareMixin):
     """Log all incoming requests with details."""
     

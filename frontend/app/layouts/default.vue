@@ -83,19 +83,6 @@ const checkAuth = async () => {
   }
 }
 
-// Helper to get CSRF token from cookies
-const getCsrfToken = () => {
-  const name = 'csrftoken'
-  const cookies = document.cookie.split(';')
-  for (let cookie of cookies) {
-    const [key, value] = cookie.trim().split('=')
-    if (key === name) {
-      return decodeURIComponent(value)
-    }
-  }
-  return null
-}
-
 const handleLogout = async () => {
   try {
     // Call logout endpoint

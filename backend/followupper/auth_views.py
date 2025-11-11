@@ -6,6 +6,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth import authenticate, login, logout
+from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.models import User
 from django.core.mail import send_mail
 from django.conf import settings
@@ -62,6 +63,7 @@ def register(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@csrf_exempt
 def login_view(request):
     """Login a user."""
     email = request.data.get('email')
@@ -97,12 +99,7 @@ def login_view(request):
     # Login user
     login(request, user)
     
-    # Ensure CSRF token is set in cookies for cross-domain requests
-    from django.middleware.csrf import get_token
-    get_token(request)
-    
-    # Create response with user data
-    response = Response({
+    return Response({
         'message': 'Login successful',
         'user': {
             'id': user.id,
@@ -110,29 +107,11 @@ def login_view(request):
             'email': user.email
         }
     }, status=status.HTTP_200_OK)
-    
-    # Explicitly set CSRF cookie with proper settings for cross-domain
-    from django.conf import settings
-    csrf_token = get_token(request)
-    
-    # Include CSRF token in response header (for cross-domain JavaScript access)
-    response['X-CSRFToken'] = csrf_token
-    
-    # Also set cookie
-    response.set_cookie(
-        'csrftoken',
-        csrf_token,
-        max_age=31449600,  # 1 year
-        httponly=False,  # Allow JavaScript to read it
-        samesite='None',
-        secure=True  # Required for SameSite=None
-    )
-    
-    return response
 
 
 @api_view(['POST'])
 @permission_classes([AllowAny])  # Allow logout even if not authenticated (idempotent)
+@csrf_exempt
 def logout_view(request):
     """Logout a user (idempotent - works even if already logged out)."""
     # Only logout if user is authenticated
@@ -161,6 +140,7 @@ def logout_view(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@csrf_exempt
 def change_password(request):
     """Change user's password."""
     old_password = request.data.get('old_password')
@@ -184,46 +164,28 @@ def change_password(request):
 
 @api_view(['GET'])
 @permission_classes([AllowAny])  # Allow unauthenticated requests to check auth status
+@csrf_exempt
 def current_user(request):
     """Get current authenticated user."""
-    from django.middleware.csrf import get_token
-    
-    # Get CSRF token
-    csrf_token = get_token(request)
-    
     # Check if user is authenticated
     if not request.user.is_authenticated:
-        response = Response({'error': 'Not authenticated'}, status=status.HTTP_403_FORBIDDEN)
-    else:
-        user = request.user
-        profile, _ = UserProfile.objects.get_or_create(user=user)
-        
-        response = Response({
-            'id': user.id,
-            'username': user.username,
-            'email': user.email,
-            'two_factor_enabled': profile.two_factor_enabled,
-            'is_superuser': user.is_superuser
-        }, status=status.HTTP_200_OK)
+        return Response({'error': 'Not authenticated'}, status=status.HTTP_403_FORBIDDEN)
     
-    # Always include CSRF token in response header for cross-domain requests
-    response['X-CSRFToken'] = csrf_token
+    user = request.user
+    profile, _ = UserProfile.objects.get_or_create(user=user)
     
-    # Also set cookie
-    response.set_cookie(
-        'csrftoken',
-        csrf_token,
-        max_age=31449600,  # 1 year
-        httponly=False,  # Allow JavaScript to read it
-        samesite='None',
-        secure=True  # Required for SameSite=None
-    )
-    
-    return response
+    return Response({
+        'id': user.id,
+        'username': user.username,
+        'email': user.email,
+        'two_factor_enabled': profile.two_factor_enabled,
+        'is_superuser': user.is_superuser
+    }, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@csrf_exempt
 def request_password_reset(request):
     """Request a password reset email."""
     email = request.data.get('email')
@@ -284,6 +246,7 @@ If you did not request this password reset, please ignore this email.
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@csrf_exempt
 def reset_password(request):
     """Reset password using token."""
     token = request.data.get('token')
@@ -315,6 +278,7 @@ def reset_password(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@csrf_exempt
 def setup_2fa(request):
     """Setup 2FA for the current user."""
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
@@ -344,6 +308,7 @@ def setup_2fa(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@csrf_exempt
 def enable_2fa(request):
     """Enable 2FA after verifying token."""
     token = request.data.get('token')
@@ -367,6 +332,7 @@ def enable_2fa(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@csrf_exempt
 def disable_2fa(request):
     """Disable 2FA for the current user."""
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
@@ -379,6 +345,7 @@ def disable_2fa(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@csrf_exempt
 def submit_interest(request):
     """Submit an interest form."""
     from .models import InterestSubmission

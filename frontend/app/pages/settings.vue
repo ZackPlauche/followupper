@@ -416,7 +416,7 @@ useHead({
 })
 
 const { settings, loadSettings } = useApi()
-const { apiCall, apiFetch, API_BASE, getCsrfToken, ensureCsrfToken } = useApiFetch()
+const { apiCall, apiFetch, API_BASE } = useApiFetch()
 const isSuperuser = ref(false)
 const interestSubmissions = ref([])
 const loadingSubmissions = ref(false)
@@ -685,7 +685,6 @@ const saveUserSettings = async () => {
   }
 }
 
-// Using getCsrfToken and ensureCsrfToken from useApiFetch composable (already imported above)
 
 // Handle password change
 const handleChangePassword = async () => {

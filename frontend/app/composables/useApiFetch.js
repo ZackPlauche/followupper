@@ -6,77 +6,12 @@ export const useApiFetch = () => {
   const config = useRuntimeConfig()
   const API_BASE = config.public.apiBase || 'http://localhost:8001/api'
 
-  // Store CSRF token in memory (since we can't reliably read cross-domain cookies)
-  let csrfTokenCache = null
 
   /**
-   * Get CSRF token from cache or cookies
-   */
-  const getCsrfToken = () => {
-    // First try cache
-    if (csrfTokenCache) {
-      return csrfTokenCache
-    }
-    
-    // Then try cookies (works for same-domain)
-    const name = 'csrftoken'
-    const cookies = document.cookie.split(';')
-    for (let cookie of cookies) {
-      const [key, value] = cookie.trim().split('=')
-      if (key === name) {
-        const token = decodeURIComponent(value)
-        csrfTokenCache = token
-        return token
-      }
-    }
-    return null
-  }
-  
-  /**
-   * Set CSRF token in cache
-   */
-  const setCsrfToken = (token) => {
-    csrfTokenCache = token
-  }
-
-  /**
-   * Ensure CSRF token is available by fetching it if needed
-   * Note: This should only be called for authenticated requests
-   */
-  const ensureCsrfToken = async () => {
-    let token = getCsrfToken()
-    if (!token) {
-      // Try to get CSRF token from a simple GET request to any endpoint
-      // The backend should set the CSRF cookie on any request
-      try {
-        // Use a simple endpoint that doesn't require auth to get CSRF token
-        // Try health endpoint first, fallback to any public endpoint
-        try {
-          await fetch(`${API_BASE}/health/`, {
-            method: 'GET',
-            credentials: 'include'
-          })
-        } catch (e) {
-          // If health doesn't exist, try a simple GET to contacts (will fail but sets CSRF cookie)
-          await fetch(`${API_BASE}/contacts/`, {
-            method: 'GET',
-            credentials: 'include'
-          })
-        }
-        token = getCsrfToken()
-      } catch (e) {
-        // If all else fails, the token might already be set from a previous request
-        console.warn('Could not fetch CSRF token:', e)
-      }
-    }
-    return token
-  }
-
-  /**
-   * Generic API fetch with authentication and CSRF handling
+   * Generic API fetch with authentication
    * @param {string} endpoint - API endpoint (e.g., '/contacts/')
    * @param {object} options - Fetch options (method, body, headers, etc.)
-   * @param {boolean} requireAuth - Whether to include CSRF token (default: true)
+   * @param {boolean} requireAuth - Whether auth is required (for future use, not currently enforced)
    * @returns {Promise<Response>}
    */
   const apiFetch = async (endpoint, options = {}, requireAuth = true) => {
@@ -89,50 +24,11 @@ export const useApiFetch = () => {
       headers['Content-Type'] = 'application/json'
     }
 
-    // Determine if this is a state-changing request that needs CSRF protection
-    const method = (options.method || 'GET').toUpperCase()
-    const isStateChanging = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)
-    const isAuthEndpoint = endpoint.includes('/auth/login/') || endpoint.includes('/auth/register/')
-    
-    // Add CSRF token for:
-    // 1. State-changing requests (POST, PUT, DELETE, etc.) - ALWAYS need CSRF
-    // 2. Authenticated requests (unless it's login/register which don't need it initially)
-    if (isStateChanging || (requireAuth && !isAuthEndpoint)) {
-      // Try to get CSRF token, and fetch it if needed
-      let csrfToken = getCsrfToken()
-      if (!csrfToken) {
-        // For state-changing requests, we MUST have a CSRF token
-        // Try to get it by making a GET request first
-        try {
-          await fetch(`${API_BASE}/health/`, {
-            method: 'GET',
-            credentials: 'include'
-          })
-          csrfToken = getCsrfToken()
-        } catch (e) {
-          console.warn('Could not fetch CSRF token:', e)
-        }
-      }
-      
-      if (csrfToken) {
-        headers['X-CSRFToken'] = csrfToken
-      } else if (isStateChanging) {
-        // For state-changing requests, we MUST have CSRF token
-        console.error('CSRF token not available for state-changing request:', method, endpoint)
-      }
-    }
-
     const response = await fetch(`${API_BASE}${endpoint}`, {
       ...options,
       headers,
       credentials: 'include' // Always include cookies for session auth
     })
-
-    // Extract CSRF token from response headers (for cross-domain)
-    const csrfTokenFromHeader = response.headers.get('X-CSRFToken')
-    if (csrfTokenFromHeader) {
-      setCsrfToken(csrfTokenFromHeader)
-    }
 
     return response
   }
@@ -196,10 +92,7 @@ export const useApiFetch = () => {
     API_BASE,
     apiFetch,
     apiCall,
-    apiCallWithRetry,
-    getCsrfToken,
-    setCsrfToken,
-    ensureCsrfToken
+    apiCallWithRetry
   }
 }
 

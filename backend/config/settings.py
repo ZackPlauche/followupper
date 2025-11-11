@@ -53,6 +53,7 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
+    "followupper.middleware.CSRFExemptAPI",  # Exempt API routes from CSRF (must be before CsrfViewMiddleware)
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
@@ -243,8 +244,8 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
-# CSRF settings for API - use same origins as CORS
-CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS.copy()
+# CSRF settings for API - exempt all /api/ routes since this is an API
+# (CSRF is for server-rendered forms, not REST APIs)
 
 # Exempt API views from CSRF (REST Framework handles auth differently)
 CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read CSRF token
