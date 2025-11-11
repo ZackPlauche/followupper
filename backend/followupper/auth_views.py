@@ -121,15 +121,16 @@ def logout_view(request):
     # Create response
     response = Response({'message': 'Logout successful'}, status=status.HTTP_200_OK)
     
-    # Clear cookies with proper settings
-    response.delete_cookie('sessionid', path='/', samesite='Lax')
-    response.delete_cookie('csrftoken', path='/', samesite='Lax')
+    # Clear cookies with proper settings for cross-domain
+    from django.conf import settings
+    # Use SameSite=None and Secure=True for cross-domain cookies
+    response.delete_cookie('sessionid', path='/', samesite='None', secure=True)
+    response.delete_cookie('csrftoken', path='/', samesite='None', secure=True)
     
     # Also try to clear with domain if set
-    from django.conf import settings
     if hasattr(settings, 'SESSION_COOKIE_DOMAIN') and settings.SESSION_COOKIE_DOMAIN:
-        response.delete_cookie('sessionid', domain=settings.SESSION_COOKIE_DOMAIN, path='/')
-        response.delete_cookie('csrftoken', domain=settings.SESSION_COOKIE_DOMAIN, path='/')
+        response.delete_cookie('sessionid', domain=settings.SESSION_COOKIE_DOMAIN, path='/', samesite='None', secure=True)
+        response.delete_cookie('csrftoken', domain=settings.SESSION_COOKIE_DOMAIN, path='/', samesite='None', secure=True)
     
     return response
 

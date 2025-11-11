@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
+import logging
 from dotenv import load_dotenv
 import dj_database_url
 
@@ -89,6 +90,74 @@ DATABASES = {
         conn_max_age=600
     )
 }
+
+# Add connection settings for PostgreSQL
+# Railway and most cloud PostgreSQL services require SSL
+if DATABASES['default'].get('ENGINE') == 'django.db.backends.postgresql':
+    DATABASES['default']['OPTIONS'] = {
+        'connect_timeout': 10,  # 10 second timeout
+        'sslmode': 'require',  # Railway requires SSL
+    }
+
+# Print database URL on startup (mask password for security)
+# Use print() because logging isn't initialized when settings.py loads
+database_url_env = os.getenv('DATABASE_URL')
+if database_url_env:
+    # Mask password in environment URL
+    if '@' in database_url_env and '://' in database_url_env:
+        parts = database_url_env.split('://')
+        if len(parts) == 2:
+            scheme = parts[0]
+            rest = parts[1]
+            if '@' in rest:
+                auth_part, host_part = rest.split('@', 1)
+                if ':' in auth_part:
+                    user, password = auth_part.split(':', 1)
+                    masked_env_url = f"{scheme}://{user}:{'*' * len(password)}@{host_part}"
+                    print(f"Database URL: {masked_env_url}")
+                else:
+                    print(f"Database URL: {scheme}://{auth_part}@***")
+            else:
+                print(f"Database URL: {scheme}://***")
+        else:
+            print(f"Database URL: {database_url_env}")
+    else:
+        print(f"Database URL: {database_url_env}")
+else:
+    # No DATABASE_URL env var, construct from parsed config
+    db_config = DATABASES['default']
+    db_engine = db_config.get('ENGINE', '')
+
+    if db_engine == 'django.db.backends.sqlite3':
+        # SQLite - show the path
+        db_name = db_config.get('NAME', '')
+        print(f"Database URL: sqlite:///{db_name}")
+    else:
+        # Other databases - construct URL and mask password
+        db_name = db_config.get('NAME', '')
+        db_user = db_config.get('USER', '')
+        db_password = db_config.get('PASSWORD', '')
+        db_host = db_config.get('HOST', 'localhost')
+        db_port = db_config.get('PORT', '')
+
+        # Map Django engine to URL scheme
+        engine_to_scheme = {
+            'django.db.backends.postgresql': 'postgresql',
+            'django.db.backends.postgresql_psycopg2': 'postgresql',
+            'django.db.backends.mysql': 'mysql',
+            'django.db.backends.sqlite3': 'sqlite',
+        }
+        scheme = engine_to_scheme.get(db_engine, db_engine.split('.')[-1])
+
+        # Construct URL with masked password
+        masked_password = '*' * len(db_password) if db_password else ''
+
+        if db_port:
+            db_url_display = f"{scheme}://{db_user}:{masked_password}@{db_host}:{db_port}/{db_name}"
+        else:
+            db_url_display = f"{scheme}://{db_user}:{masked_password}@{db_host}/{db_name}"
+
+        print(f"Database URL: {db_url_display}")
 
 
 # Password validation
@@ -180,7 +249,13 @@ CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS.copy()
 
 # Exempt API views from CSRF (REST Framework handles auth differently)
 CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read CSRF token
-CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'  # Allow cross-domain cookies
+CSRF_COOKIE_SECURE = True  # Required when SameSite=None (HTTPS only)
+
+# Session cookie settings for cross-domain authentication
+SESSION_COOKIE_SAMESITE = 'None'  # Allow cross-domain cookies
+SESSION_COOKIE_SECURE = True  # Required when SameSite=None (HTTPS only)
+SESSION_COOKIE_HTTPONLY = True  # Prevent XSS attacks
 
 # Logging
 LOGGING = {

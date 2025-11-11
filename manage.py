@@ -227,13 +227,13 @@ def start():
 
     if sys.platform == "win32":
         backend_process = subprocess.Popen(
-            'uv run python manage.py runserver 0.0.0.0:8001',
+            'uv run python manage.py runserver 127.0.0.1:8001',
             cwd=backend_dir,
             shell=True
         )
     else:
         backend_process = subprocess.Popen(
-            'uv run python manage.py runserver 0.0.0.0:8001',
+            'uv run python manage.py runserver 127.0.0.1:8001',
             shell=True,
             cwd=backend_dir
         )

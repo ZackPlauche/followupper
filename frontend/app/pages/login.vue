@@ -167,16 +167,32 @@ const handleLogin = async () => {
     if (data.requires_2fa) {
       requires2FA.value = true
     } else {
-      // Login successful - initialize data before redirecting
-      const { initializeApp } = useApi()
-      try {
-        await initializeApp()
-      } catch (error) {
-        console.error('Error initializing app after login:', error)
-        // Continue with redirect even if initialization fails
+      // Login successful - wait a moment for cookies to be set
+      // Then verify authentication before initializing
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // Verify we're authenticated by checking current user
+      const { apiFetch } = useApiFetch()
+      const authCheck = await apiFetch('/auth/current-user/', {
+        method: 'GET'
+      }, false)
+      
+      if (authCheck.ok) {
+        // Now initialize data
+        const { initializeApp } = useApi()
+        try {
+          await initializeApp()
+        } catch (error) {
+          console.error('Error initializing app after login:', error)
+          // Continue with redirect even if initialization fails
+        }
+        // Redirect to dashboard
+        await navigateTo('/contacts')
+      } else {
+        // Authentication didn't work - show error
+        loginError.value = 'Login successful but session not established. Please try again.'
+        console.error('Auth check failed after login:', await authCheck.text())
       }
-      // Redirect to dashboard
-      await navigateTo('/contacts')
     }
   } catch (error) {
     loginError.value = error.message || 'Login failed'
@@ -200,16 +216,32 @@ const handle2FALogin = async () => {
       })
     }, 3, false) // Don't require auth for login
     
-    // Login successful - initialize data before redirecting
-    const { initializeApp } = useApi()
-    try {
-      await initializeApp()
-    } catch (error) {
-      console.error('Error initializing app after 2FA login:', error)
-      // Continue with redirect even if initialization fails
+    // Login successful - wait a moment for cookies to be set
+    // Then verify authentication before initializing
+    await new Promise(resolve => setTimeout(resolve, 100))
+    
+    // Verify we're authenticated by checking current user
+    const { apiFetch } = useApiFetch()
+    const authCheck = await apiFetch('/auth/current-user/', {
+      method: 'GET'
+    }, false)
+    
+    if (authCheck.ok) {
+      // Now initialize data
+      const { initializeApp } = useApi()
+      try {
+        await initializeApp()
+      } catch (error) {
+        console.error('Error initializing app after 2FA login:', error)
+        // Continue with redirect even if initialization fails
+      }
+      // Redirect to dashboard
+      await navigateTo('/contacts')
+    } else {
+      // Authentication didn't work - show error
+      loginError.value = 'Login successful but session not established. Please try again.'
+      console.error('Auth check failed after 2FA login:', await authCheck.text())
     }
-    // Redirect to dashboard
-    await navigateTo('/contacts')
   } catch (error) {
     loginError.value = error.message || 'Invalid 2FA code'
     console.error('2FA login error:', error)

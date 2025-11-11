@@ -6,7 +6,7 @@ echo.
 
 echo Starting backend server...
 cd backend
-start /B uv run python manage.py runserver 0.0.0.0:8001
+start /B uv run python manage.py runserver 127.0.0.1:8001
 cd ..
 
 echo Waiting 3 seconds for backend to start...
