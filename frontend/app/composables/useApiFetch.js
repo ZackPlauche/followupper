@@ -20,8 +20,16 @@ export const useApiFetch = () => {
     }
 
     // Only set Content-Type if not FormData (FormData sets its own Content-Type with boundary)
-    if (!(options.body instanceof FormData)) {
-      headers['Content-Type'] = 'application/json'
+    // For FormData, we must NOT set Content-Type - let the browser set it with the boundary
+    if (options.body instanceof FormData) {
+      // Explicitly remove Content-Type if it was set, so browser can set it with boundary
+      delete headers['Content-Type']
+      delete headers['content-type']
+    } else {
+      // For JSON, set Content-Type if not already set
+      if (!headers['Content-Type'] && !headers['content-type']) {
+        headers['Content-Type'] = 'application/json'
+      }
     }
 
     const response = await fetch(`${API_BASE}${endpoint}`, {

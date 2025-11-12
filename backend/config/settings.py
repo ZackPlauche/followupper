@@ -208,6 +208,8 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PARSER_CLASSES': [
         'rest_framework.parsers.JSONParser',
+        'rest_framework.parsers.MultiPartParser',  # For file uploads
+        'rest_framework.parsers.FormParser',  # For form data
     ],
     'DEFAULT_PAGINATION_CLASS': None,
     # Allow unauthenticated access for backward compatibility (data is global, not user-specific)
