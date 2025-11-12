@@ -740,6 +740,23 @@
           </button>
         </div>
         <div class="p-6">
+          <div class="mb-4 flex items-center gap-2">
+            <label class="text-sm text-slate-300 font-light">Select CSV File</label>
+            <button @click="showImportInstructions = !showImportInstructions" 
+                    class="text-slate-400 hover:text-emerald-400 transition-colors">
+              <Icon name="lucide:info" class="w-4 h-4" />
+            </button>
+          </div>
+          <div v-if="showImportInstructions" class="mb-4 p-4 bg-slate-700/30 rounded-xl border border-slate-600/50">
+            <p class="text-sm text-slate-300 mb-2 font-light">CSV Format Instructions:</p>
+            <ul class="text-xs text-slate-400 space-y-1 list-disc list-inside font-light">
+              <li><strong class="text-slate-300">Required:</strong> Name</li>
+              <li><strong class="text-slate-300">Optional:</strong> Preferred Name, Email, Codementor Username, Gender, Timezone, Notes, Is Active, Platform Preference</li>
+              <li>First row must be headers: <code class="text-emerald-400">Name, Email, Codementor Username, Preferred Name, Gender, Timezone, Notes, Is Active, Platform Preference</code></li>
+              <li>Platform Preference: comma-separated list (e.g., <code class="text-emerald-400">email, codementor</code>)</li>
+              <li>Is Active: <code class="text-emerald-400">true</code> or <code class="text-emerald-400">false</code> (defaults to true)</li>
+            </ul>
+          </div>
           <input type="file" accept=".csv" @change="handleFileSelect" 
                  class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 mb-4">
           <div v-if="importStatus" class="mb-4 p-4 rounded-xl text-sm" 
@@ -798,6 +815,7 @@ const selectedContactIds = ref(new Set())
 const showImportModal = ref(false)
 const importFile = ref(null)
 const importStatus = ref('')
+const showImportInstructions = ref(false)
 const showBulkMessageModal = ref(false)
 const bulkMessage = ref({
   platforms: [],
