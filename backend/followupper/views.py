@@ -403,14 +403,28 @@ class ContactViewSet(viewsets.ModelViewSet):
                     last_messaged_str = row.get('Last Messaged', '').strip()
                     if last_messaged_str:
                         try:
+                            # Try parse_datetime first (handles ISO format)
                             parsed_date = parse_datetime(last_messaged_str)
+                            if not parsed_date:
+                                # If parse_datetime fails, try parsing the exported format: 'YYYY-MM-DD HH:MM:SS'
+                                try:
+                                    parsed_date = datetime.strptime(last_messaged_str, '%Y-%m-%d %H:%M:%S')
+                                except ValueError:
+                                    # Try with microseconds
+                                    try:
+                                        parsed_date = datetime.strptime(last_messaged_str, '%Y-%m-%d %H:%M:%S.%f')
+                                    except ValueError:
+                                        pass
+
                             if parsed_date:
                                 # Make timezone-aware if not already
                                 if timezone.is_naive(parsed_date):
                                     parsed_date = timezone.make_aware(parsed_date)
                                 contact_data['last_messaged'] = parsed_date
-                        except Exception:
-                            # If parsing fails, just skip it
+                        except Exception as e:
+                            # Log the error for debugging but continue
+                            logger = logging.getLogger('followupper')
+                            logger.warning(f"Failed to parse last_messaged '{last_messaged_str}': {str(e)}")
                             pass
 
                     # Handle platform preference
