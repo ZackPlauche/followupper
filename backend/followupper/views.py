@@ -176,7 +176,8 @@ class ContactViewSet(viewsets.ModelViewSet):
         if 'codementor_username' in data and not data['codementor_username']:
             data['codementor_username'] = None
 
-        partial = kwargs.pop('partial', False)
+        # Allow partial updates for both PUT and PATCH
+        partial = kwargs.pop('partial', True)
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=data, partial=partial)
         serializer.is_valid(raise_exception=True)
