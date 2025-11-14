@@ -12,6 +12,7 @@ from datetime import datetime
 import codementorapi
 from django.http import HttpResponse
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.views.decorators.csrf import csrf_exempt
 from gmail import Client
 from rest_framework import viewsets, status
@@ -235,11 +236,12 @@ class ContactViewSet(viewsets.ModelViewSet):
         writer = csv.writer(response)
         writer.writerow([
             'Name', 'Preferred Name', 'Gender', 'Email', 'Codementor Username',
-            'Platform Preference', 'Timezone', 'Notes', 'Is Active'
+            'Platform Preference', 'Timezone', 'Notes', 'Is Active', 'Source', 'Is Favorite', 'Last Messaged'
         ])
 
         for contact in contacts:
             platform_pref = ','.join(contact.platform_preference) if isinstance(contact.platform_preference, list) else str(contact.platform_preference)
+            last_messaged_str = contact.last_messaged.strftime('%Y-%m-%d %H:%M:%S') if contact.last_messaged else ''
             writer.writerow([
                 contact.name,
                 contact.preferred_name,
@@ -249,7 +251,10 @@ class ContactViewSet(viewsets.ModelViewSet):
                 platform_pref,
                 contact.timezone,
                 contact.notes,
-                contact.is_active
+                contact.is_active,
+                contact.source or '',
+                contact.is_favorite,
+                last_messaged_str
             ])
 
         return response
@@ -390,8 +395,23 @@ class ContactViewSet(viewsets.ModelViewSet):
                         'notes': row.get('Notes', '').strip(),
                         'is_active': row.get('Is Active', 'True').strip().lower() in ('true', '1', 'yes', 'y'),
                         'source': row.get('Source', '').strip() or 'csv',
+                        'is_favorite': row.get('Is Favorite', '').strip().lower() in ('true', '1', 'yes', 'y'),
                         'user': request.user if request.user.is_authenticated else None
                     }
+
+                    # Handle last_messaged if provided
+                    last_messaged_str = row.get('Last Messaged', '').strip()
+                    if last_messaged_str:
+                        try:
+                            parsed_date = parse_datetime(last_messaged_str)
+                            if parsed_date:
+                                # Make timezone-aware if not already
+                                if timezone.is_naive(parsed_date):
+                                    parsed_date = timezone.make_aware(parsed_date)
+                                contact_data['last_messaged'] = parsed_date
+                        except Exception:
+                            # If parsing fails, just skip it
+                            pass
 
                     # Handle platform preference
                     platform_pref = row.get('Platform Preference', '').strip()

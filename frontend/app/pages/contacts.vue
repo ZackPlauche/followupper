@@ -26,12 +26,12 @@
           </button>
           <button @click="exportContacts"
             class="bg-slate-700/50 border border-emerald-500/30 text-slate-300 px-6 py-3 rounded-xl font-light hover:border-emerald-500/50 hover:text-emerald-400 transition-all duration-300">
-            <Icon name="lucide:download" class="w-5 h-5 inline mr-2" />
+            <Icon name="lucide:upload" class="w-5 h-5 inline mr-2" />
             Export
           </button>
           <button @click="showImportModal = true"
             class="bg-slate-700/50 border border-emerald-500/30 text-slate-300 px-6 py-3 rounded-xl font-light hover:border-emerald-500/50 hover:text-emerald-400 transition-all duration-300">
-            <Icon name="lucide:upload" class="w-5 h-5 inline mr-2" />
+            <Icon name="lucide:download" class="w-5 h-5 inline mr-2" />
             Import
           </button>
           <button @click="showContactForm = true"
