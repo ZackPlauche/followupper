@@ -8,10 +8,26 @@
           <div>
             <h3 class="text-2xl font-thin text-slate-100 mb-1">{{ contact.name }}</h3>
             <p class="text-slate-400 text-sm">{{ contact.email || contact.codementor_username || 'No contact info' }}</p>
-            <p v-if="editingContact.timezone || contact.timezone" class="text-slate-500 text-xs mt-1">
-              <Icon name="lucide:clock" class="w-3 h-3 inline mr-1" />
-              Contact's time: {{ contactCurrentTime }}
-            </p>
+            <div class="flex items-center gap-3 mt-2">
+              <p v-if="editingContact.timezone || contact.timezone" class="text-slate-500 text-xs">
+                <Icon name="lucide:clock" class="w-3 h-3 inline mr-1" />
+                Contact's time: {{ contactCurrentTime }}
+              </p>
+              <a v-if="contact.codementor_username" 
+                 :href="`https://www.codementor.io/@${contact.codementor_username}`" 
+                 target="_blank"
+                 class="text-blue-400 hover:text-blue-300 text-xs flex items-center gap-1 transition-colors">
+                <Icon name="simple-icons:codementor" class="w-4 h-4" />
+                Codementor Profile
+              </a>
+              <a v-if="contact.email" 
+                 :href="`https://mail.google.com/mail/?view=cm&to=${contact.email}`" 
+                 target="_blank"
+                 class="text-blue-400 hover:text-blue-300 text-xs flex items-center gap-1 transition-colors">
+                <Icon name="lucide:mail" class="w-4 h-4" />
+                Open in Gmail
+              </a>
+            </div>
           </div>
           <button v-if="isModal" @click="$emit('close')" class="text-slate-400 hover:text-slate-200 transition-colors">
             <Icon name="lucide:x" class="w-6 h-6" />
@@ -107,6 +123,12 @@
                   <option :value="true">Active</option>
                   <option :value="false">Inactive</option>
                 </select>
+              </div>
+              <div>
+                <label class="block text-sm font-light text-slate-300 mb-1">Source</label>
+                <input v-model="editingContact.source" type="text"
+                       class="w-full bg-slate-600/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors"
+                       placeholder="e.g., manual, codementor, csv">
               </div>
               <div class="flex space-x-2 pt-2">
                 <button type="submit"

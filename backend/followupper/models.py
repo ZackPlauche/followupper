@@ -28,6 +28,8 @@ class Contact(models.Model):
     last_messaged = models.DateTimeField(null=True, blank=True, db_index=True, help_text="Date and time of the most recent sent message")
     notes = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
+    source = models.CharField(max_length=100, blank=True, help_text="Source of the contact (e.g., 'codementor', 'manual', 'csv')")
+    is_favorite = models.BooleanField(default=False, db_index=True, help_text="Whether this contact is marked as favorite")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -232,6 +234,8 @@ class UserSettings(models.Model):
     """User settings model for storing user preferences."""
     timezone = models.CharField(max_length=50, default='UTC', blank=True)
     footer = models.TextField(blank=True, help_text="Default footer/signature to append to all messages")
+    codementor_max_concurrent = models.IntegerField(default=1, help_text="Maximum number of Codementor messages that can be sent at the same time")
+    codementor_send_interval = models.IntegerField(default=5, help_text="Interval in seconds between sending Codementor messages")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

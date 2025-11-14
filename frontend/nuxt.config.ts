@@ -3,6 +3,9 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
   modules: ['@nuxt/icon', '@nuxt/fonts', '@nuxt/image', '@nuxtjs/tailwindcss'],
+  icon: {
+    mode: 'svg',
+  },
   css: ['~/assets/css/tailwind.css'],
   devServer: {
     port: 4000

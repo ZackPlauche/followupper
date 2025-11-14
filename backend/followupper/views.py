@@ -1,29 +1,147 @@
 """
 Django REST Framework viewsets.
 """
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework import viewsets, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
-from django.views.decorators.csrf import csrf_exempt
-from django.db.models import Q, Count
-from django.http import HttpResponse
-import json
 import csv
 import io
+import re
+import time
+import logging
+import threading
+from datetime import datetime
+
+import codementorapi
+from django.http import HttpResponse
+from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+from gmail import Client
+from rest_framework import viewsets, status
+from rest_framework.decorators import api_view, permission_classes, action
+from rest_framework.permissions import AllowAny, IsAdminUser
+from rest_framework.response import Response
 
 from .models import (
     Contact, MessageTemplate, ScheduledFollowup, PlatformCredentials,
     Campaign, CampaignStep, CampaignAssignment, AssignmentStatus, UserSettings,
-    MessageSequence, Message, InterestSubmission
+    MessageSequence, Message, InterestSubmission, AutomationSettings
 )
 from .serializers import (
     ContactSerializer, MessageTemplateSerializer, ScheduledFollowupSerializer,
     PlatformCredentialsSerializer, CampaignSerializer, CampaignStepSerializer,
     CampaignAssignmentSerializer, UserSettingsSerializer,
-    MessageSequenceSerializer, MessageSerializer, InterestSubmissionSerializer
+    MessageSequenceSerializer, MessageSerializer, InterestSubmissionSerializer,
+    AutomationSettingsSerializer
 )
+from .rate_limiter import CodementorRateLimiter
+from .scheduler import get_scheduler, restart_scheduler
+
+
+# Helper functions for message sending
+def _send_email_message(contact, subject, body):
+    """Send an email message to a contact. Returns (success, message_id, error)."""
+    try:
+        gmail_creds = PlatformCredentials.objects.filter(platform='gmail').first()
+        if not gmail_creds:
+            return False, None, 'Gmail credentials not configured'
+
+        gmail_data = gmail_creds.get_credentials()
+        gmail_email = gmail_data.get('email', '').strip()
+        app_password = gmail_data.get('app_password', '').strip()
+        gmail_name = gmail_data.get('name', '').strip()
+
+        if not gmail_email or not app_password:
+            return False, None, 'Gmail credentials are incomplete'
+
+        client_kwargs = {'email': gmail_email, 'app_password': app_password}
+        if gmail_name:
+            client_kwargs['name'] = gmail_name
+
+        client = Client(**client_kwargs)
+        email_message_id = client.send_email(to=contact.email, subject=subject, body=body)
+        return True, email_message_id, None
+    except Exception as e:
+        return False, None, f'Email send failed: {str(e)}'
+
+
+def _send_codementor_message(contact, body):
+    """Send a Codementor message to a contact with rate limiting. Returns (success, error)."""
+    logger = logging.getLogger('followupper')
+
+    try:
+        # Get rate limiting settings
+        user_settings = UserSettings.get_settings()
+        max_concurrent = user_settings.codementor_max_concurrent or 1
+        send_interval = user_settings.codementor_send_interval or 5
+
+        logger.info(f"[SEND_MESSAGE] Codementor send requested for contact {contact.id} ({contact.name})")
+        logger.info(f"[SEND_MESSAGE] Rate limit settings: max_concurrent={max_concurrent}, send_interval={send_interval}")
+
+        # Get rate limiter and wait for slot
+        rate_limiter = CodementorRateLimiter.get_instance()
+        logger.info(f"[SEND_MESSAGE] Waiting for rate limit slot...")
+        rate_limiter.wait_for_slot(max_concurrent, send_interval)
+        logger.info(f"[SEND_MESSAGE] Rate limit slot acquired, sending message...")
+
+        try:
+            codementor_creds = PlatformCredentials.objects.filter(platform='codementor').first()
+            if not codementor_creds:
+                return False, 'Codementor credentials not configured'
+
+            creds_data = codementor_creds.get_credentials()
+            access_token = creds_data.get('access_token', '').strip()
+            refresh_token = creds_data.get('refresh_token', '').strip()
+
+            if not access_token or not refresh_token:
+                return False, 'Codementor credentials are incomplete'
+
+            send_start_time = datetime.now()
+            logger.info(f"[SEND_MESSAGE] Sending Codementor message at {send_start_time}")
+            client = codementorapi.Client(
+                access_token=access_token,
+                refresh_token=refresh_token
+            )
+            client.send_message(contact.codementor_username, body)
+            send_end_time = datetime.now()
+            send_duration = (send_end_time - send_start_time).total_seconds()
+            logger.info(f"[SEND_MESSAGE] Codementor message sent successfully in {send_duration:.2f}s")
+            return True, None
+        finally:
+            # Release the slot after sending
+            logger.info(f"[SEND_MESSAGE] Releasing rate limit slot...")
+            rate_limiter.release_slot()
+    except Exception as e:
+        logger.error(f"[SEND_MESSAGE] Codementor send failed: {str(e)}", exc_info=True)
+        # Make sure to release slot even on error
+        try:
+            CodementorRateLimiter.get_instance().release_slot()
+        except BaseException:
+            pass
+        return False, f'Codementor send failed: {str(e)}'
+
+
+def _save_message_history(contact, subject, body, sent_platforms, email_message_id):
+    """Save message to history and update contact's last_messaged field."""
+    try:
+        sent_time = timezone.now()
+        create_kwargs = {
+            'contact': contact,
+            'subject': subject if 'email' in sent_platforms else '',
+            'body': body,
+            'platforms': sent_platforms,
+            'status': 'sent',
+            'sent_at': sent_time
+        }
+        if email_message_id:
+            create_kwargs['email_message_id'] = email_message_id
+        message_record = Message.objects.create(**create_kwargs)
+
+        # Update contact's last_messaged field
+        contact.last_messaged = sent_time
+        contact.save(update_fields=['last_messaged'])
+        return message_record
+    except Exception as e:
+        logger = logging.getLogger('followupper')
+        logger.error(f"Failed to save message history: {str(e)}")
+        return None
 
 
 class ContactViewSet(viewsets.ModelViewSet):
@@ -135,6 +253,96 @@ class ContactViewSet(viewsets.ModelViewSet):
 
         return response
 
+    @action(detail=False, methods=['post'], url_path='bulk-update')
+    def bulk_update_contacts(self, request):
+        """Bulk update multiple contacts with the same data."""
+        contact_ids = request.data.get('contact_ids', [])
+        if not contact_ids:
+            return Response(
+                {'error': 'contact_ids is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get queryset filtered by user
+        queryset = self.get_queryset()
+        contacts = queryset.filter(id__in=contact_ids)
+
+        if contacts.count() != len(contact_ids):
+            return Response(
+                {'error': 'Some contacts not found or not accessible'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Prepare update data (only non-unique fields)
+        update_data = {}
+
+        # Platform preference
+        if 'platform_preference' in request.data:
+            update_data['platform_preference'] = request.data['platform_preference']
+
+        # Timezone
+        if 'timezone' in request.data and request.data['timezone']:
+            update_data['timezone'] = request.data['timezone']
+
+        # Status
+        if 'is_active' in request.data and request.data['is_active'] is not None:
+            update_data['is_active'] = request.data['is_active']
+
+        # Source
+        if 'source' in request.data and request.data['source']:
+            update_data['source'] = request.data['source']
+
+        # Favorite
+        if 'is_favorite' in request.data and request.data['is_favorite'] is not None:
+            update_data['is_favorite'] = request.data['is_favorite']
+
+        # Gender
+        if 'gender' in request.data and request.data['gender']:
+            update_data['gender'] = request.data['gender']
+
+        if not update_data:
+            return Response(
+                {'error': 'No valid fields to update'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Update all contacts
+        updated_count = contacts.update(**update_data)
+
+        return Response({
+            'message': f'Successfully updated {updated_count} contact(s)',
+            'updated_count': updated_count
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], url_path='bulk-delete')
+    def bulk_delete_contacts(self, request):
+        """Bulk delete multiple contacts."""
+        contact_ids = request.data.get('contact_ids', [])
+        if not contact_ids:
+            return Response(
+                {'error': 'contact_ids is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get queryset filtered by user
+        queryset = self.get_queryset()
+        contacts = queryset.filter(id__in=contact_ids)
+
+        if contacts.count() != len(contact_ids):
+            return Response(
+                {'error': 'Some contacts not found or not accessible'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Delete all contacts
+        deleted_count = contacts.count()
+        contacts.delete()
+
+        return Response({
+            'message': f'Successfully deleted {deleted_count} contact(s)',
+            'deleted_count': deleted_count
+        }, status=status.HTTP_200_OK)
+
     @action(detail=False, methods=['post'], url_path='import')
     def import_contacts(self, request):
         """Import contacts from CSV."""
@@ -180,6 +388,7 @@ class ContactViewSet(viewsets.ModelViewSet):
                         'timezone': row.get('Timezone', '').strip() or 'UTC',
                         'notes': row.get('Notes', '').strip(),
                         'is_active': row.get('Is Active', 'True').strip().lower() in ('true', '1', 'yes', 'y'),
+                        'source': row.get('Source', '').strip() or 'csv',
                         'user': request.user if request.user.is_authenticated else None
                     }
 
@@ -212,6 +421,241 @@ class ContactViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({'error': f'Failed to import contacts: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=False, methods=['post'], url_path='bulk-send')
+    def bulk_send(self, request):
+        """Send a message to multiple contacts via one or more platforms with rate limiting."""
+        contact_ids = request.data.get('contact_ids', [])
+        platforms = request.data.get('platforms', [])
+        subject = request.data.get('subject', '').strip()
+        body = request.data.get('body', '').strip()
+        use_preferred_platforms = request.data.get('use_preferred_platforms', False)
+
+        if not contact_ids or not isinstance(contact_ids, list):
+            return Response(
+                {'error': 'contact_ids must be a non-empty list'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not platforms or not isinstance(platforms, list):
+            return Response(
+                {'error': 'At least one platform must be specified'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not body:
+            return Response(
+                {'error': 'Message body is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get contacts
+        try:
+            contacts = Contact.objects.filter(id__in=contact_ids)
+            if contacts.count() != len(contact_ids):
+                return Response(
+                    {'error': 'Some contacts were not found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        except Exception as e:
+            return Response(
+                {'error': f'Error fetching contacts: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        # Process in background thread
+        def process_bulk_send():
+            logger = logging.getLogger('followupper')
+            user_settings = UserSettings.get_settings()
+            max_concurrent = user_settings.codementor_max_concurrent or 1
+            send_interval = user_settings.codementor_send_interval or 5
+
+            # Get credentials once
+            gmail_creds = PlatformCredentials.objects.filter(platform='gmail').first()
+            codementor_creds = PlatformCredentials.objects.filter(platform='codementor').first()
+
+            gmail_client = None
+            if gmail_creds:
+                gmail_data = gmail_creds.get_credentials()
+                gmail_email = gmail_data.get('email', '').strip()
+                app_password = gmail_data.get('app_password', '').strip()
+                gmail_name = gmail_data.get('name', '').strip()
+                if gmail_email and app_password:
+                    client_kwargs = {'email': gmail_email, 'app_password': app_password}
+                    if gmail_name:
+                        client_kwargs['name'] = gmail_name
+                    gmail_client = Client(**client_kwargs)
+
+            codementor_client = None
+            if codementor_creds:
+                creds_data = codementor_creds.get_credentials()
+                access_token = creds_data.get('access_token', '').strip()
+                refresh_token = creds_data.get('refresh_token', '').strip()
+                if access_token and refresh_token:
+                    codementor_client = codementorapi.Client(
+                        access_token=access_token,
+                        refresh_token=refresh_token
+                    )
+
+            # Separate contacts by platform
+            email_contacts = []
+            codementor_contacts = []
+
+            for contact in contacts:
+                contact_platforms = []
+                if use_preferred_platforms:
+                    preferred = contact.platform_preference or []
+                    if 'email' in preferred and contact.email:
+                        contact_platforms.append('email')
+                    if 'codementor' in preferred and contact.codementor_username:
+                        contact_platforms.append('codementor')
+                else:
+                    if 'email' in platforms and contact.email:
+                        contact_platforms.append('email')
+                    if 'codementor' in platforms and contact.codementor_username:
+                        contact_platforms.append('codementor')
+
+                if 'email' in contact_platforms:
+                    email_contacts.append(contact)
+                if 'codementor' in contact_platforms:
+                    codementor_contacts.append(contact)
+
+            # Helper function to replace template variables
+            def replace_template_variables(text, contact_obj):
+                """Replace template variables in message text."""
+                result = text
+
+                # Get contact data
+                first_name = contact_obj.first_name or ''
+                preferred_name = contact_obj.preferred_name or ''
+                gender = contact_obj.gender or ''
+
+                # Handle gender-based conditionals first
+                if gender == 'male':
+                    result = re.sub(r'\{if_male:([^}]+)\}', r'\1', result)
+                    result = re.sub(r'\{if_female:([^}]+)\}', '', result)
+                elif gender == 'female':
+                    result = re.sub(r'\{if_female:([^}]+)\}', r'\1', result)
+                    result = re.sub(r'\{if_male:([^}]+)\}', '', result)
+                else:
+                    result = re.sub(r'\{if_male:([^}]+)\}', '', result)
+                    result = re.sub(r'\{if_female:([^}]+)\}', '', result)
+
+                # Replace simplified syntax
+                result = result.replace('{name}', contact_obj.name or '')
+                result = result.replace('{first_name}', first_name)
+                result = result.replace('{preferred_name}', preferred_name)
+                result = result.replace('{gender}', gender)
+                result = result.replace('{email}', contact_obj.email or '')
+                result = result.replace('{codementor_username}', contact_obj.codementor_username or '')
+                result = result.replace('{notes}', contact_obj.notes or '')
+
+                # Replace old syntax for backwards compatibility
+                result = result.replace('{contact.name}', contact_obj.name or '')
+                result = result.replace('{contact.first_name}', first_name)
+                result = result.replace('{contact.preferred_name}', preferred_name)
+                result = result.replace('{contact.gender}', gender)
+                result = result.replace('{contact.email}', contact_obj.email or '')
+                result = result.replace('{contact.codementor_username}', contact_obj.codementor_username or '')
+                result = result.replace('{contact.notes}', contact_obj.notes or '')
+
+                return result
+
+            # Send emails immediately (no rate limiting)
+            for contact in email_contacts:
+                try:
+                    if gmail_client:
+                        # Replace template variables per contact
+                        email_subject = replace_template_variables(subject, contact) if subject else 'No Subject'
+                        email_body = replace_template_variables(body, contact)
+
+                        gmail_client.send_email(to=contact.email, subject=email_subject, body=email_body)
+
+                        # Save message history
+                        Message.objects.create(
+                            contact=contact,
+                            subject=email_subject,
+                            body=email_body,
+                            platforms=['email'],
+                            status='sent',
+                            sent_at=timezone.now()
+                        )
+                        contact.last_messaged = timezone.now()
+                        contact.save(update_fields=['last_messaged'])
+                except Exception as e:
+                    logger.error(f"Failed to send email to {contact.name}: {str(e)}")
+
+            # Send Codementor messages in batches with rate limiting
+            rate_limiter = CodementorRateLimiter.get_instance()
+
+            for i in range(0, len(codementor_contacts), max_concurrent):
+                batch = codementor_contacts[i:i + max_concurrent]
+
+                # Send batch concurrently
+                def send_to_contact(contact):
+                    try:
+                        logger.info(f"[BULK_SEND] Codementor send requested for contact {contact.id} ({contact.name})")
+                        rate_limiter.wait_for_slot(max_concurrent, send_interval)
+                        logger.info(f"[BULK_SEND] Rate limit slot acquired for contact {contact.id}")
+
+                        try:
+                            if codementor_client:
+                                # Replace template variables per contact
+                                codementor_body = replace_template_variables(body, contact)
+
+                                send_start = datetime.now()
+                                codementor_client.send_message(contact.codementor_username, codementor_body)
+                                send_end = datetime.now()
+                                logger.info(f"[BULK_SEND] Codementor message sent to {contact.name} in {(send_end - send_start).total_seconds():.2f}s")
+
+                                # Save message history
+                                Message.objects.create(
+                                    contact=contact,
+                                    subject='',
+                                    body=codementor_body,
+                                    platforms=['codementor'],
+                                    status='sent',
+                                    sent_at=timezone.now()
+                                )
+                                contact.last_messaged = timezone.now()
+                                contact.save(update_fields=['last_messaged'])
+                        finally:
+                            rate_limiter.release_slot()
+                            logger.info(f"[BULK_SEND] Rate limit slot released for contact {contact.id}")
+                    except Exception as e:
+                        logger.error(f"[BULK_SEND] Failed to send to {contact.name}: {str(e)}", exc_info=True)
+                        try:
+                            rate_limiter.release_slot()
+                        except BaseException:
+                            pass
+
+                # Send batch concurrently using threads
+                threads = []
+                for contact in batch:
+                    thread = threading.Thread(target=send_to_contact, args=(contact,))
+                    thread.start()
+                    threads.append(thread)
+
+                # Wait for batch to complete
+                for thread in threads:
+                    thread.join()
+
+                # Wait for interval before next batch (except last batch)
+                if i + max_concurrent < len(codementor_contacts):
+                    logger.info(f"[BULK_SEND] Waiting {send_interval}s before next batch...")
+                    time.sleep(send_interval)
+
+            logger.info(f"[BULK_SEND] Bulk send completed: {len(email_contacts)} emails, {len(codementor_contacts)} Codementor messages")
+
+        # Start background thread
+        thread = threading.Thread(target=process_bulk_send)
+        thread.daemon = True
+        thread.start()
+
+        return Response({
+            'message': f'Bulk send initiated for {len(contact_ids)} contact(s). Processing in background.',
+            'contact_count': len(contact_ids)
+        }, status=status.HTTP_202_ACCEPTED)
+
 
 class MessageTemplateViewSet(viewsets.ModelViewSet):
     queryset = MessageTemplate.objects.all()
@@ -237,7 +681,6 @@ class PlatformCredentialsViewSet(viewsets.ModelViewSet):
         codementor_data = codementor.get_credentials() if codementor else {'access_token': '', 'refresh_token': ''}
 
         # Get automation settings
-        from .models import AutomationSettings
         automation_settings = AutomationSettings.get_settings()
         automation_data = {
             'enabled': automation_settings.enabled,
@@ -252,7 +695,9 @@ class PlatformCredentialsViewSet(viewsets.ModelViewSet):
             'automation': automation_data,
             'user': {
                 'timezone': user_settings.timezone or 'UTC',
-                'footer': user_settings.footer or ''
+                'footer': user_settings.footer or '',
+                'codementor_max_concurrent': user_settings.codementor_max_concurrent if user_settings.codementor_max_concurrent is not None else 1,
+                'codementor_send_interval': user_settings.codementor_send_interval if user_settings.codementor_send_interval is not None else 5
             }
         }
 
@@ -292,8 +737,6 @@ class PlatformCredentialsViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get', 'post'], url_path='automation')
     def automation_settings(self, request):
         """Get or save automation settings."""
-        from .models import AutomationSettings
-        from .serializers import AutomationSettingsSerializer
 
         if request.method == 'GET':
             automation_settings = AutomationSettings.get_settings()
@@ -306,11 +749,9 @@ class PlatformCredentialsViewSet(viewsets.ModelViewSet):
             serializer.save()
 
             # Restart scheduler with new settings
-            from .scheduler import get_scheduler, restart_scheduler
             try:
                 restart_scheduler()
             except Exception as e:
-                import logging
                 logger = logging.getLogger('followupper')
                 logger.warning(f"Failed to restart scheduler after settings change: {e}")
 
@@ -333,7 +774,6 @@ class PlatformCredentialsViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'], url_path='test/gmail')
     def test_gmail(self, request):
         """Test Gmail connection."""
-        from gmail import Client
 
         email = request.data.get('email', '').strip()
         app_password = request.data.get('app_password', '').strip()
@@ -371,8 +811,6 @@ class PlatformCredentialsViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'], url_path='test/codementor')
     def test_codementor(self, request):
         """Test Codementor connection."""
-        import codementorapi
-
         access_token = request.data.get('access_token', '').strip()
         refresh_token = request.data.get('refresh_token', '').strip()
 
@@ -403,13 +841,138 @@ class PlatformCredentialsViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    @action(detail=False, methods=['post'], url_path='import/codementor')
+    @csrf_exempt
+    def import_codementor_contacts(self, request):
+        """Import contacts from Codementor sessions."""
+        # Get Codementor credentials
+        codementor_creds = PlatformCredentials.objects.filter(platform='codementor').first()
+        if not codementor_creds:
+            return Response(
+                {'error': 'Codementor credentials not configured'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        creds_data = codementor_creds.get_credentials()
+        access_token = creds_data.get('access_token', '').strip()
+        refresh_token = creds_data.get('refresh_token', '').strip()
+
+        if not access_token or not refresh_token:
+            return Response(
+                {'error': 'Codementor credentials are incomplete'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # Create Codementor client
+            client = codementorapi.Client(
+                access_token=access_token,
+                refresh_token=refresh_token
+            )
+
+            # Get all sessions
+            sessions = client.get_sessions()
+
+            # Track unique contacts by username to avoid duplicates
+            contacts_seen = {}
+            created = 0
+            updated = 0
+            errors = []
+
+            # Process each session to extract mentee information
+            for session in sessions:
+                try:
+                    mentee = session.mentee
+                    username = mentee.username
+
+                    # Skip if we've already processed this username
+                    if username in contacts_seen:
+                        continue
+
+                    # Skip if name is "Removed User"
+                    mentee_name = mentee.name or ''
+                    if mentee_name.strip() == 'Removed User':
+                        continue
+
+                    # Get full session details for more info (optional, but provides timezone)
+                    try:
+                        session_detail = client.get_session_details(session.id)
+                        mentee_detail = session_detail.mentee
+                        timezone_region = mentee_detail.time_zone_region or 'UTC'
+                    except Exception:
+                        # If we can't get details, use basic info
+                        timezone_region = 'UTC'
+
+                    # Check if contact already exists (filter by user if authenticated)
+                    contact = None
+                    if username:
+                        if request.user.is_authenticated:
+                            contact = Contact.objects.filter(
+                                codementor_username=username,
+                                user=request.user
+                            ).first()
+                        else:
+                            contact = Contact.objects.filter(
+                                codementor_username=username,
+                                user__isnull=True
+                            ).first()
+
+                    # Prepare contact data
+                    # Note: We intentionally do NOT set preferred_name from Codementor
+                    contact_data = {
+                        'codementor_username': username,
+                        'timezone': timezone_region,
+                        'platform_preference': ['codementor'],
+                        'source': 'Codementor',
+                        'user': request.user if request.user.is_authenticated else None
+                    }
+
+                    if contact:
+                        # Update existing contact - but don't update name if it already exists
+                        # Only set name if contact doesn't have one or if it's empty
+                        # Also, do NOT update preferred_name from Codementor
+                        if not contact.name or contact.name.strip() == '':
+                            contact_data['name'] = mentee_name or username or 'Unknown'
+
+                        for key, value in contact_data.items():
+                            if key != 'user' or value is not None:
+                                setattr(contact, key, value)
+                        contact.save()
+                        updated += 1
+                    else:
+                        # Create new contact
+                        # Note: preferred_name is intentionally left blank (not set from Codementor)
+                        contact_data['name'] = mentee_name or username or 'Unknown'
+                        Contact.objects.create(**contact_data)
+                        created += 1
+
+                    contacts_seen[username] = True
+
+                except Exception as e:
+                    errors.append(f'Error processing session {session.id}: {str(e)}')
+
+            return Response({
+                'message': f'Import completed: {created} created, {updated} updated',
+                'created': created,
+                'updated': updated,
+                'errors': errors
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            error_message = str(e)
+            if 'authentication' in error_message.lower() or 'token' in error_message.lower():
+                return Response(
+                    {'error': 'Authentication failed. Please check your Codementor credentials.'},
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+            return Response(
+                {'error': f'Import failed: {error_message}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     @action(detail=False, methods=['post'], url_path='send-message')
     def send_message(self, request):
         """Send a message to a contact via one or more platforms."""
-        import json
-        from datetime import datetime
-        from gmail import Client
-
         # Get contact ID and message data
         contact_id = request.data.get('contact_id')
         platforms = request.data.get('platforms', [])  # List of platforms: ['email', 'codementor']
@@ -480,51 +1043,20 @@ class PlatformCredentialsViewSet(viewsets.ModelViewSet):
 
         # Send via email if requested
         if 'email' in valid_platforms:
-            try:
-                gmail_creds = PlatformCredentials.objects.filter(platform='gmail').first()
-                if not gmail_creds:
-                    errors.append('Gmail credentials not configured')
-                else:
-                    gmail_data = gmail_creds.get_credentials()
-                    gmail_email = gmail_data.get('email', '').strip()
-                    app_password = gmail_data.get('app_password', '').strip()
-                    gmail_name = gmail_data.get('name', '').strip()
+            success, msg_id, error = _send_email_message(contact, subject, body)
+            if success:
+                sent_platforms.append('email')
+                email_message_id = msg_id
+            else:
+                errors.append(error)
 
-                    if not gmail_email or not app_password:
-                        errors.append('Gmail credentials are incomplete')
-                    else:
-                        client_kwargs = {'email': gmail_email, 'app_password': app_password}
-                        if gmail_name:
-                            client_kwargs['name'] = gmail_name
-                        client = Client(**client_kwargs)
-                        email_message_id = client.send_email(to=contact.email, subject=subject, body=body)
-                        sent_platforms.append('email')
-            except Exception as e:
-                errors.append(f'Email send failed: {str(e)}')
-
-        # Send via Codementor if requested
+        # Send via Codementor if requested (with rate limiting)
         if 'codementor' in valid_platforms:
-            try:
-                import codementorapi
-                codementor_creds = PlatformCredentials.objects.filter(platform='codementor').first()
-                if not codementor_creds:
-                    errors.append('Codementor credentials not configured')
-                else:
-                    creds_data = codementor_creds.get_credentials()
-                    access_token = creds_data.get('access_token', '').strip()
-                    refresh_token = creds_data.get('refresh_token', '').strip()
-
-                    if not access_token or not refresh_token:
-                        errors.append('Codementor credentials are incomplete')
-                    else:
-                        client = codementorapi.Client(
-                            access_token=access_token,
-                            refresh_token=refresh_token
-                        )
-                        client.send_message(contact.codementor_username, body)
-                        sent_platforms.append('codementor')
-            except Exception as e:
-                errors.append(f'Codementor send failed: {str(e)}')
+            success, error = _send_codementor_message(contact, body)
+            if success:
+                sent_platforms.append('codementor')
+            else:
+                errors.append(error)
 
         if not sent_platforms:
             return Response(
@@ -532,31 +1064,8 @@ class PlatformCredentialsViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-        # Store in message history (create Message record)
-        message_record = None
-        try:
-            from django.utils import timezone
-            sent_time = timezone.now()
-            create_kwargs = {
-                'contact': contact,
-                'subject': subject if 'email' in sent_platforms else '',
-                'body': body,
-                'platforms': sent_platforms,
-                'status': 'sent',
-                'sent_at': sent_time
-            }
-            if email_message_id:
-                create_kwargs['email_message_id'] = email_message_id
-            message_record = Message.objects.create(**create_kwargs)
-
-            # Update contact's last_messaged field
-            contact.last_messaged = sent_time
-            contact.save(update_fields=['last_messaged'])
-        except Exception as e:
-            # Log but don't fail the request
-            import logging
-            logger = logging.getLogger('followupper')
-            logger.error(f"Failed to save message history: {str(e)}")
+        # Store in message history
+        message_record = _save_message_history(contact, subject, body, sent_platforms, email_message_id)
 
         response_message = f'Message sent via {", ".join(sent_platforms)}'
         if errors:
@@ -650,8 +1159,6 @@ class MessageViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='send-now')
     def send_now(self, request, pk=None):
         """Send a pending message immediately."""
-        from .scheduler import get_scheduler
-        from django.utils import timezone
 
         message = self.get_object()
 
@@ -674,7 +1181,6 @@ class MessageViewSet(viewsets.ModelViewSet):
                 'status': message.status
             })
         except Exception as e:
-            import logging
             logger = logging.getLogger('followupper')
             logger.error(f"Failed to send message {message.id}: {str(e)}", exc_info=True)
             return Response(
@@ -705,8 +1211,6 @@ class InterestSubmissionViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         """Anyone can submit interest, but only superusers can view/manage."""
         if self.action == 'create':
-            from rest_framework.permissions import AllowAny
             return [AllowAny()]
         # But only superusers can view/manage
-        from rest_framework.permissions import IsAdminUser
         return [IsAdminUser()]

@@ -12,7 +12,7 @@ export const useApi = () => {
     gmail: { email: '', app_password: '' },
     codementor: { access_token: '', refresh_token: '' },
     automation: { enabled: false, check_interval: 15, max_retries: 3, timezone: 'UTC' },
-    user: { timezone: 'UTC', footer: '' }
+    user: { timezone: 'UTC', footer: '', codementor_max_concurrent: 1, codementor_send_interval: 5 }
   }))
   const isLoading = useState('isLoading', () => false)
   const error = useState('error', () => null)
@@ -307,7 +307,7 @@ export const useApi = () => {
       gmail: { email: '', app_password: '' },
       codementor: { access_token: '', refresh_token: '' },
       automation: { enabled: false, check_interval: 15, max_retries: 3, timezone: 'UTC' },
-      user: { timezone: 'UTC', footer: '' }
+      user: { timezone: 'UTC', footer: '', codementor_max_concurrent: 1, codementor_send_interval: 5 }
     }
     
     await Promise.all([

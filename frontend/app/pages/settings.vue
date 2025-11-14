@@ -88,6 +88,7 @@
               placeholder="Message footer"></textarea>
             <p class="mt-2 text-xs text-slate-400 font-light">This footer will be used as the default for message chains. You can override it per chain.</p>
           </div>
+
         </div>
         
         <!-- Password Change Section -->
@@ -233,6 +234,27 @@
             </div>
           </div>
 
+          <!-- Codementor Rate Limiting -->
+          <div class="mt-6 pt-6 border-t border-slate-600/30">
+            <h4 class="text-lg font-light text-slate-200 mb-4">Rate Limiting</h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label class="block text-sm font-light text-slate-300 mb-2">Max Concurrent Messages</label>
+                <input v-model.number="userConfig.codementor_max_concurrent" type="number" min="1"
+                  class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors"
+                  placeholder="1">
+                <p class="mt-2 text-xs text-slate-400 font-light">Maximum number of Codementor messages that can be sent at the same time</p>
+              </div>
+              <div>
+                <label class="block text-sm font-light text-slate-300 mb-2">Send Interval (seconds)</label>
+                <input v-model.number="userConfig.codementor_send_interval" type="number" min="1"
+                  class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors"
+                  placeholder="5">
+                <p class="mt-2 text-xs text-slate-400 font-light">Interval in seconds between sending Codementor messages</p>
+              </div>
+            </div>
+          </div>
+
           <div class="flex items-center justify-between mt-6">
             <div class="flex items-center space-x-2">
               <div class="w-2 h-2 rounded-full"
@@ -243,6 +265,12 @@
               </span>
             </div>
             <div class="flex space-x-3">
+              <button @click="importCodementorContacts"
+                class="px-4 py-2 bg-purple-600/50 text-purple-300 rounded-lg font-light hover:bg-purple-600/70 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                :disabled="!codementorConfig.access_token || !codementorConfig.refresh_token || importingCodementor">
+                <Icon name="lucide:download" class="w-4 h-4 inline mr-1" />
+                {{ importingCodementor ? 'Importing...' : 'Import Contacts' }}
+              </button>
               <button @click="testCodementorConnection"
                 class="px-4 py-2 bg-blue-600/50 text-blue-300 rounded-lg font-light hover:bg-blue-600/70 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 :disabled="!codementorConfig.access_token || !codementorConfig.refresh_token">
@@ -420,6 +448,7 @@ const { apiCall, apiFetch, API_BASE } = useApiFetch()
 const isSuperuser = ref(false)
 const interestSubmissions = ref([])
 const loadingSubmissions = ref(false)
+const importingCodementor = ref(false)
 
 // Use global settings state
 const gmailConfig = ref({ ...settings.value.gmail })
@@ -427,7 +456,9 @@ const codementorConfig = ref({ ...settings.value.codementor })
 const automationConfig = ref({ ...settings.value.automation })
 const userConfig = ref({ 
   timezone: settings.value.user?.timezone || 'UTC',
-  footer: settings.value.user?.footer || ''
+  footer: settings.value.user?.footer || '',
+  codementor_max_concurrent: settings.value.user?.codementor_max_concurrent || 1,
+  codementor_send_interval: settings.value.user?.codementor_send_interval || 5
 })
 
 // Track original values for change detection
@@ -436,7 +467,9 @@ const originalCodementor = ref({ ...settings.value.codementor })
 const originalAutomation = ref({ ...settings.value.automation })
 const originalUser = ref({ 
   timezone: settings.value.user?.timezone || 'UTC',
-  footer: settings.value.user?.footer || ''
+  footer: settings.value.user?.footer || '',
+  codementor_max_concurrent: settings.value.user?.codementor_max_concurrent || 1,
+  codementor_send_interval: settings.value.user?.codementor_send_interval || 5
 })
 const passwordChange = ref({
   currentPassword: '',
@@ -453,7 +486,9 @@ watch(settings, (newSettings) => {
   automationConfig.value = { ...newSettings.automation }
   userConfig.value = { 
     timezone: newSettings.user?.timezone || 'UTC',
-    footer: newSettings.user?.footer || ''
+    footer: newSettings.user?.footer || '',
+    codementor_max_concurrent: newSettings.user?.codementor_max_concurrent || 1,
+    codementor_send_interval: newSettings.user?.codementor_send_interval || 5
   }
 
   // Update original values when settings are loaded
@@ -462,7 +497,9 @@ watch(settings, (newSettings) => {
   originalAutomation.value = { ...newSettings.automation }
   originalUser.value = { 
     timezone: newSettings.user?.timezone || 'UTC',
-    footer: newSettings.user?.footer || ''
+    footer: newSettings.user?.footer || '',
+    codementor_max_concurrent: newSettings.user?.codementor_max_concurrent || 1,
+    codementor_send_interval: newSettings.user?.codementor_send_interval || 5
   }
 }, { deep: true })
 
@@ -475,7 +512,9 @@ const hasGmailChanges = computed(() => {
 
 const hasCodementorChanges = computed(() => {
   return codementorConfig.value.access_token !== originalCodementor.value.access_token ||
-    codementorConfig.value.refresh_token !== originalCodementor.value.refresh_token
+    codementorConfig.value.refresh_token !== originalCodementor.value.refresh_token ||
+    userConfig.value.codementor_max_concurrent !== originalUser.value.codementor_max_concurrent ||
+    userConfig.value.codementor_send_interval !== originalUser.value.codementor_send_interval
 })
 
 const hasAutomationChanges = computed(() => {
@@ -600,6 +639,37 @@ const testCodementorConnection = async () => {
   }
 }
 
+const importCodementorContacts = async () => {
+  if (!codementorConfig.value.access_token || !codementorConfig.value.refresh_token) {
+    showStatusWithProgress('Please configure Codementor credentials first', 3000)
+    return
+  }
+
+  importingCodementor.value = true
+  try {
+    showStatusWithProgress('Importing contacts from Codementor...', 10000)
+    const data = await apiCall('/settings/import/codementor/', {
+      method: 'POST'
+    })
+    
+    const message = `Import completed: ${data.created} created, ${data.updated} updated${data.errors.length > 0 ? `. ${data.errors.length} errors` : ''}`
+    showStatusWithProgress(message, 5000)
+    
+    // Reload contacts if available
+    const { loadContacts } = useApi()
+    try {
+      await loadContacts()
+    } catch (e) {
+      console.warn('Could not reload contacts:', e)
+    }
+  } catch (error) {
+    console.error('Codementor import failed:', error)
+    showStatusWithProgress(`Import failed: ${error.message || 'Unknown error'}`, 5000)
+  } finally {
+    importingCodementor.value = false
+  }
+}
+
 // Save individual settings
 const saveGmailSettings = async () => {
   try {
@@ -625,9 +695,20 @@ const saveGmailSettings = async () => {
 const saveCodementorSettings = async () => {
   try {
     showStatusWithProgress('Saving Codementor settings...', 3000)
+    
+    // Save Codementor credentials
     await apiCall('/settings/codementor/', {
       method: 'POST',
       body: JSON.stringify(codementorConfig.value)
+    })
+
+    // Save Codementor rate limiting (stored in user settings)
+    await apiCall('/settings/user/', {
+      method: 'POST',
+      body: JSON.stringify({
+        codementor_max_concurrent: userConfig.value.codementor_max_concurrent,
+        codementor_send_interval: userConfig.value.codementor_send_interval
+      })
     })
 
     // Reload settings from server to get the latest data
@@ -635,6 +716,8 @@ const saveCodementorSettings = async () => {
 
     // Update original values from reloaded settings
     originalCodementor.value = { ...settings.value.codementor }
+    originalUser.value.codementor_max_concurrent = settings.value.user?.codementor_max_concurrent || 1
+    originalUser.value.codementor_send_interval = settings.value.user?.codementor_send_interval || 5
 
     showStatusWithProgress('Codementor settings saved!', 3000)
   } catch (error) {
@@ -675,7 +758,9 @@ const saveUserSettings = async () => {
     // Update original values from reloaded settings
     originalUser.value = { 
       timezone: settings.value.user?.timezone || 'UTC',
-      footer: settings.value.user?.footer || ''
+      footer: settings.value.user?.footer || '',
+      codementor_max_concurrent: settings.value.user?.codementor_max_concurrent || 1,
+      codementor_send_interval: settings.value.user?.codementor_send_interval || 5
     }
 
     showStatusWithProgress('User settings saved!', 3000)
@@ -793,7 +878,9 @@ const saveSettings = async () => {
     originalAutomation.value = { ...settings.value.automation }
     originalUser.value = { 
       timezone: settings.value.user?.timezone || 'UTC',
-      footer: settings.value.user?.footer || ''
+      footer: settings.value.user?.footer || '',
+      codementor_max_concurrent: settings.value.user?.codementor_max_concurrent || 1,
+      codementor_send_interval: settings.value.user?.codementor_send_interval || 5
     }
 
     showStatusWithProgress('All settings saved successfully!', 3000)
@@ -820,11 +907,15 @@ onMounted(() => {
   if (settings.value && settings.value.user) {
     userConfig.value = { 
       timezone: settings.value.user.timezone || 'UTC',
-      footer: settings.value.user.footer || ''
+      footer: settings.value.user.footer || '',
+      codementor_max_concurrent: settings.value.user.codementor_max_concurrent || 1,
+      codementor_send_interval: settings.value.user.codementor_send_interval || 5
     }
     originalUser.value = { 
       timezone: settings.value.user.timezone || 'UTC',
-      footer: settings.value.user.footer || ''
+      footer: settings.value.user.footer || '',
+      codementor_max_concurrent: settings.value.user.codementor_max_concurrent || 1,
+      codementor_send_interval: settings.value.user.codementor_send_interval || 5
     }
   }
 
