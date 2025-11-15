@@ -1144,7 +1144,11 @@ class CampaignViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['put', 'delete'], url_path='assignments/(?P<assignment_id>[^/.]+)')
     def assignment_detail(self, request, pk=None, assignment_id=None):
         """Update or delete a campaign assignment."""
-        assignment = CampaignAssignment.objects.get(id=assignment_id, campaign_id=pk)
+        try:
+            assignment = CampaignAssignment.objects.get(id=assignment_id, campaign_id=pk)
+        except CampaignAssignment.DoesNotExist:
+            return Response({'error': 'Assignment not found'}, status=status.HTTP_404_NOT_FOUND)
+
         if request.method == 'PUT':
             serializer = CampaignAssignmentSerializer(assignment, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)

@@ -1,15 +1,12 @@
 <template>
-  <div v-if="contact">
-    <ContactProfile 
-      :contact="contact"
-      :upcoming-messages="upcomingMessages"
-      :is-modal="false"
-      @update="handleContactUpdate"
-      @send-message="handleSendMessage"
-    />
-  </div>
-  <div v-else class="text-center py-12">
-    <p class="text-slate-400">Contact not found</p>
+  <div>
+    <div v-if="contact">
+      <ContactProfile :contact="contact" :upcoming-messages="upcomingMessages" :is-modal="false"
+        @update="handleContactUpdate" @send-message="handleSendMessage" />
+    </div>
+    <div v-else class="text-center py-12">
+      <p class="text-slate-400">Contact not found</p>
+    </div>
   </div>
 </template>
 
@@ -24,12 +21,12 @@ const upcomingMessages = ref([])
 const loadContactData = async () => {
   const contactId = parseInt(route.params.id)
   contact.value = api.contacts.value.find(c => c.id === contactId)
-  
+
   if (!contact.value) {
     await api.loadContacts()
     contact.value = api.contacts.value.find(c => c.id === contactId)
   }
-  
+
   if (contact.value) {
     await loadContactAssignments(contactId)
   }
@@ -39,7 +36,7 @@ const loadContactAssignments = async (contactId) => {
   try {
     const { apiCall } = useApiFetch()
     const allAssignments = []
-    
+
     // Load assignments from all campaigns
     for (const campaign of api.campaigns.value) {
       try {
@@ -57,7 +54,7 @@ const loadContactAssignments = async (contactId) => {
         console.error(`Error loading assignments for campaign ${campaign.id}:`, error)
       }
     }
-    
+
     upcomingMessages.value = allAssignments.sort((a, b) => new Date(a.next_send_date) - new Date(b.next_send_date))
   } catch (error) {
     console.error('Error loading contact assignments:', error)
@@ -85,4 +82,3 @@ watch(() => route.params.id, async () => {
   await loadContactData()
 })
 </script>
-

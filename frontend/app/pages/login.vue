@@ -1,9 +1,11 @@
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 flex items-center justify-center p-4">
+  <div
+    class="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 flex items-center justify-center p-4">
     <div class="w-full max-w-md">
       <div class="text-center mb-8">
         <NuxtLink to="/" class="block mb-4">
-          <h1 class="text-5xl font-thin gradient-title mb-4 hover:opacity-80 transition-opacity cursor-pointer">followupper</h1>
+          <h1 class="text-5xl font-thin gradient-title mb-4 hover:opacity-80 transition-opacity cursor-pointer">
+            followupper</h1>
         </NuxtLink>
         <p class="text-slate-400 font-light">Sign in to your account</p>
       </div>
@@ -104,7 +106,8 @@
               placeholder="you@example.com">
           </div>
 
-          <div v-if="resetMessage" class="bg-emerald-500/20 border border-emerald-500/30 rounded-xl p-4 text-emerald-300 text-sm">
+          <div v-if="resetMessage"
+            class="bg-emerald-500/20 border border-emerald-500/30 rounded-xl p-4 text-emerald-300 text-sm">
             {{ resetMessage }}
           </div>
 
@@ -128,7 +131,6 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
 
 useHead({
   title: 'Login - Followupper'
@@ -153,7 +155,7 @@ const resetMessage = ref('')
 const handleLogin = async () => {
   isLoading.value = true
   loginError.value = ''
-  
+
   try {
     const data = await apiCall('/auth/login/', {
       method: 'POST',
@@ -162,7 +164,7 @@ const handleLogin = async () => {
         password: loginForm.value.password
       })
     }, 3, false) // Don't require auth for login
-    
+
     // Check if 2FA is required
     if (data.requires_2fa) {
       requires2FA.value = true
@@ -170,13 +172,13 @@ const handleLogin = async () => {
       // Login successful - wait a moment for cookies to be set
       // Then verify authentication before initializing
       await new Promise(resolve => setTimeout(resolve, 100))
-      
+
       // Verify we're authenticated by checking current user
       const { apiFetch } = useApiFetch()
       const authCheck = await apiFetch('/auth/current-user/', {
         method: 'GET'
       }, false)
-      
+
       if (authCheck.ok) {
         // Now initialize data
         const { initializeApp } = useApi()
@@ -205,7 +207,7 @@ const handleLogin = async () => {
 const handle2FALogin = async () => {
   isLoading.value = true
   loginError.value = ''
-  
+
   try {
     const data = await apiCall('/auth/login/', {
       method: 'POST',
@@ -215,17 +217,17 @@ const handle2FALogin = async () => {
         two_factor_token: twoFactorCode.value
       })
     }, 3, false) // Don't require auth for login
-    
+
     // Login successful - wait a moment for cookies to be set
     // Then verify authentication before initializing
     await new Promise(resolve => setTimeout(resolve, 100))
-    
+
     // Verify we're authenticated by checking current user
     const { apiFetch } = useApiFetch()
     const authCheck = await apiFetch('/auth/current-user/', {
       method: 'GET'
     }, false)
-    
+
     if (authCheck.ok) {
       // Now initialize data
       const { initializeApp } = useApi()
@@ -254,13 +256,13 @@ const handlePasswordReset = async () => {
   isLoading.value = true
   resetError.value = ''
   resetMessage.value = ''
-  
+
   try {
     const data = await apiCall('/auth/password-reset/request/', {
       method: 'POST',
       body: JSON.stringify({ email: resetEmail.value })
     }, 3, false) // Don't require auth for password reset
-    
+
     resetMessage.value = data.message || 'If the email exists, a password reset link has been sent.'
   } catch (error) {
     resetError.value = error.message || 'Failed to send reset email'
@@ -270,4 +272,3 @@ const handlePasswordReset = async () => {
   }
 }
 </script>
-

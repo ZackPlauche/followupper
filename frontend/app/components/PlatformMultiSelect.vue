@@ -4,35 +4,23 @@
     <div class="relative">
       <div class="flex flex-wrap gap-2 p-2 bg-slate-600/50 border border-emerald-500/30 rounded-lg min-h-[2.5rem]">
         <div v-for="platform in modelValue" :key="platform"
-             class="flex items-center gap-1 px-2 py-1 bg-emerald-500/20 text-emerald-300 rounded-md text-xs">
+          class="flex items-center gap-1 px-2 py-1 bg-emerald-500/20 text-emerald-300 rounded-md text-xs">
           <span>{{ platform === 'email' ? 'Email' : 'Codementor' }}</span>
-          <button @click.stop="removePlatform(platform)"
-                  class="hover:text-red-400 transition-colors">
+          <button @click.stop="removePlatform(platform)" class="hover:text-red-400 transition-colors">
             <Icon name="lucide:x" class="w-3 h-3" />
           </button>
         </div>
-        <input 
-          ref="inputRef"
-          v-model="searchQuery"
-          @keydown.enter.prevent="handleEnter"
-          @keydown.escape="showDropdown = false"
-          @focus="showDropdown = true"
-          @input="showDropdown = true"
-          @click.stop="showDropdown = true"
-          type="text"
-          :placeholder="placeholder"
-          class="flex-1 min-w-[120px] bg-transparent border-none outline-none text-slate-100 text-xs placeholder-slate-400 cursor-text"
-        />
-        <Icon name="lucide:chevron-down" 
-              class="w-4 h-4 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none !text-slate-400"
-              :class="{'rotate-180': showDropdown}" />
+        <input ref="inputRef" v-model="searchQuery" @keydown.enter.prevent="handleEnter"
+          @keydown.escape="showDropdown = false" @focus="showDropdown = true" @input="showDropdown = true"
+          @click.stop="showDropdown = true" type="text" :placeholder="placeholder"
+          class="flex-1 min-w-[120px] bg-transparent border-none outline-none text-slate-100 text-xs placeholder-slate-400 cursor-text" />
+        <Icon name="lucide:chevron-down"
+          class="w-4 h-4 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none !text-slate-400"
+          :class="{ 'rotate-180': showDropdown }" />
       </div>
-      <div v-if="showDropdown && availablePlatformsFiltered.length > 0" 
-           class="absolute z-50 w-full mt-1 bg-slate-700 border border-slate-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-        <button 
-          v-for="platform in filteredPlatforms" 
-          :key="platform"
-          @click.stop="addPlatform(platform)"
+      <div v-if="showDropdown && availablePlatformsFiltered.length > 0"
+        class="absolute z-50 w-full mt-1 bg-slate-700 border border-slate-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+        <button v-for="platform in filteredPlatforms" :key="platform" @click.stop="addPlatform(platform)"
           class="w-full text-left px-3 py-2 text-sm text-slate-100 hover:bg-slate-600 transition-colors">
           {{ platform === 'email' ? 'Email' : 'Codementor' }}
         </button>
@@ -124,7 +112,7 @@ onMounted(() => {
         showDropdown.value = false
         return
       }
-      
+
       // Check if click is outside the input area
       if (containerRef.value) {
         const input = inputRef.value
@@ -143,4 +131,3 @@ onUnmounted(() => {
   }
 })
 </script>
-

@@ -1,5 +1,6 @@
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 flex items-center justify-center p-4">
+  <div
+    class="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 flex items-center justify-center p-4">
     <div class="w-full max-w-md">
       <div class="text-center mb-8">
         <h1 class="text-5xl font-thin gradient-title mb-4">followupper</h1>
@@ -33,7 +34,8 @@
             {{ error }}
           </div>
 
-          <div v-if="success" class="bg-emerald-500/20 border border-emerald-500/30 rounded-xl p-4 text-emerald-300 text-sm">
+          <div v-if="success"
+            class="bg-emerald-500/20 border border-emerald-500/30 rounded-xl p-4 text-emerald-300 text-sm">
             {{ success }}
           </div>
 
@@ -57,8 +59,6 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-
 useHead({
   title: 'Express Interest - Followupper'
 })
@@ -78,7 +78,7 @@ const handleSubmit = async () => {
   isLoading.value = true
   error.value = ''
   success.value = ''
-  
+
   try {
     const data = await apiCall('/auth/submit-interest/', {
       method: 'POST',
@@ -88,7 +88,7 @@ const handleSubmit = async () => {
         message: interestForm.value.message
       })
     }, 3, false) // Don't require auth for interest submission
-    
+
     // Redirect to thank you page
     await navigateTo(`/thank-you?name=${encodeURIComponent(interestForm.value.name)}`)
   } catch (err) {
@@ -99,4 +99,3 @@ const handleSubmit = async () => {
   }
 }
 </script>
-

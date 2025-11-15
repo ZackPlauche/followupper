@@ -47,364 +47,99 @@
       <!-- Main Content -->
       <div class="flex-1 space-y-8">
 
-      <!-- User Settings -->
-      <div id="user-settings"
-        class="bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-2xl border border-emerald-500/20 p-8 scroll-mt-6">
-        <div class="flex items-center mb-6">
-          <div
-            class="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center mr-4">
-            <Icon name="lucide:user" class="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h3 class="text-2xl font-thin text-slate-100">User Settings</h3>
-            <p class="text-slate-400 font-light">Configure your personal preferences</p>
-          </div>
-        </div>
+        <!-- User Settings -->
+        <UserSettingsSection
+          :config="userConfig"
+          :password-change="passwordChange"
+          :password-error="passwordError"
+          :password-success="passwordSuccess"
+          :has-changes="hasUserChanges"
+          @save="saveUserSettings"
+          @change-password="handleChangePassword"
+          @update:config="userConfig = $event"
+          @update:passwordChange="passwordChange = $event"
+        />
 
-        <div class="space-y-6">
-          <div>
-            <label class="block text-sm font-light text-slate-300 mb-2">Your Timezone</label>
-            <select v-model="userConfig.timezone"
-              class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 focus:border-emerald-400 focus:outline-none transition-colors [&>option]:bg-slate-700 [&>option]:text-slate-100">
-              <option value="UTC">UTC</option>
-              <option value="America/New_York">Eastern Time (ET)</option>
-              <option value="America/Chicago">Central Time (CT)</option>
-              <option value="America/Denver">Mountain Time (MT)</option>
-              <option value="America/Los_Angeles">Pacific Time (PT)</option>
-              <option value="Europe/London">London (GMT)</option>
-              <option value="Europe/Paris">Paris (CET)</option>
-              <option value="Asia/Tokyo">Tokyo (JST)</option>
-              <option value="Asia/Shanghai">Shanghai (CST)</option>
-              <option value="Australia/Sydney">Sydney (AEST)</option>
-            </select>
-            <p class="mt-2 text-xs text-slate-400 font-light">This timezone will be used when you select "Mine" in
-              message scheduling</p>
-          </div>
-          
-          <div>
-            <label class="block text-sm font-light text-slate-300 mb-2">Default Footer/Signature</label>
-            <textarea v-model="userConfig.footer" rows="4"
-              class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors resize-none"
-              placeholder="Message footer"></textarea>
-            <p class="mt-2 text-xs text-slate-400 font-light">This footer will be used as the default for message chains. You can override it per chain.</p>
-          </div>
+        <!-- Integrations Section -->
+        <IntegrationsSection
+          :gmail-config="gmailConfig"
+          :codementor-config="codementorConfig"
+          :user-config="userConfig"
+          :has-gmail-changes="hasGmailChanges"
+          :has-codementor-changes="hasCodementorChanges"
+          :importing-codementor="importingCodementor"
+          @save-gmail="saveGmailSettings"
+          @save-codementor="saveCodementorSettings"
+          @test-gmail="testGmailConnection"
+          @test-codementor="testCodementorConnection"
+          @import-codementor-contacts="importCodementorContacts"
+          @update:gmailConfig="gmailConfig = $event"
+          @update:codementorConfig="codementorConfig = $event"
+          @update:userConfig="userConfig = $event"
+        />
 
-        </div>
-        
-        <!-- Password Change Section -->
-        <div class="mt-8 pt-8 border-t border-slate-600/30">
-          <h4 class="text-lg font-light text-slate-200 mb-4">Change Password</h4>
-          <div class="space-y-4">
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-2">Current Password</label>
-              <input v-model="passwordChange.currentPassword" type="password"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors"
-                placeholder="Enter current password">
-            </div>
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-2">New Password</label>
-              <input v-model="passwordChange.newPassword" type="password"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors"
-                placeholder="Enter new password">
-            </div>
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-2">Confirm New Password</label>
-              <input v-model="passwordChange.confirmPassword" type="password"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors"
-                placeholder="Confirm new password">
-            </div>
-            <div v-if="passwordError" class="text-red-400 text-sm">{{ passwordError }}</div>
-            <div v-if="passwordSuccess" class="text-emerald-400 text-sm">{{ passwordSuccess }}</div>
-            <button @click="handleChangePassword" 
-              :disabled="!passwordChange.currentPassword || !passwordChange.newPassword || !passwordChange.confirmPassword"
-              class="px-6 py-3 rounded-xl font-light transition-all duration-300"
-              :class="passwordChange.currentPassword && passwordChange.newPassword && passwordChange.confirmPassword 
-                ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-white hover:shadow-lg' 
-                : 'bg-gradient-to-r from-emerald-500/30 to-cyan-500/30 text-emerald-200 cursor-not-allowed'">
-              Change Password
-            </button>
-          </div>
-        </div>
+        <!-- Automation Settings -->
+        <AutomationSection
+          :config="automationConfig"
+          :has-changes="hasAutomationChanges"
+          @save="saveAutomationSettings"
+          @update:config="automationConfig = $event"
+        />
 
-        <div class="flex justify-end mt-6">
-          <button @click="saveUserSettings" class="px-6 py-3 rounded-xl font-light transition-all duration-300"
-            :class="hasUserChanges ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-white hover:shadow-lg' : 'bg-gradient-to-r from-emerald-500/30 to-cyan-500/30 text-emerald-200'"
-            :disabled="!hasUserChanges">
-            Save User Settings
-          </button>
-        </div>
-      </div>
-
-      <!-- Integrations Section -->
-      <div id="integrations" class="space-y-8 scroll-mt-6">
-        <!-- Gmail Configuration -->
-        <div class="bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-2xl border border-emerald-500/20 p-8">
+        <!-- Interest Submissions Section (Superuser Only) -->
+        <div v-if="isSuperuser" id="interest-submissions"
+          class="bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-2xl border border-emerald-500/20 p-8 scroll-mt-6">
           <div class="flex items-center mb-6">
             <div
-              class="w-12 h-12 bg-gradient-to-r from-red-500 to-pink-500 rounded-xl flex items-center justify-center mr-4">
-              <Icon name="lucide:mail" class="w-6 h-6 text-white" />
+              class="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center mr-4">
+              <Icon name="lucide:users" class="w-6 h-6 text-white" />
             </div>
             <div>
-              <h3 class="text-2xl font-thin text-slate-100">Gmail Integration</h3>
-              <p class="text-slate-400 font-light">Configure your Gmail account for automated email sending</p>
+              <h3 class="text-2xl font-thin text-slate-100">Interest Submissions</h3>
+              <p class="text-slate-400 font-light">Manage interest form submissions</p>
             </div>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-2">Gmail Address</label>
-              <input v-model="gmailConfig.email" type="email" placeholder="your-email@gmail.com"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors">
-            </div>
-
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-2">App Password</label>
-              <input v-model="gmailConfig.app_password" type="password" placeholder="16-character app password"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors">
-            </div>
-
-            <div class="md:col-span-2">
-              <label class="block text-sm font-light text-slate-300 mb-2">Display Name (Optional)</label>
-              <input v-model="gmailConfig.name" type="text" placeholder="Your Name"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors">
-              <p class="mt-2 text-xs text-slate-400 font-light">This name will appear as the sender in emails (e.g.,
-                "Your Name &lt;your-email@gmail.com&gt;")</p>
-            </div>
+          <div v-if="loadingSubmissions" class="text-center py-8">
+            <Icon name="lucide:loader-2" class="w-8 h-8 text-emerald-400 animate-spin mx-auto" />
+            <p class="text-slate-400 mt-4">Loading submissions...</p>
           </div>
 
-          <div class="flex items-center justify-between mt-6">
-            <div class="flex items-center space-x-2">
-              <div class="w-2 h-2 rounded-full"
-                :class="gmailConfig.email && gmailConfig.app_password ? 'bg-emerald-400' : 'bg-slate-500'"></div>
-              <span class="text-sm text-slate-300 font-light">
-                {{ gmailConfig.email && gmailConfig.app_password ? 'Configured' : 'Not configured' }}
-              </span>
-            </div>
-            <div class="flex space-x-3">
-              <button @click="testGmailConnection"
-                class="px-4 py-2 bg-blue-600/50 text-blue-300 rounded-lg font-light hover:bg-blue-600/70 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                :disabled="!gmailConfig.email || !gmailConfig.app_password">
-                Test
-              </button>
-              <button @click="saveGmailSettings"
-                class="px-4 py-2 rounded-lg font-light transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                :class="hasGmailChanges ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-white hover:shadow-lg' : 'bg-gradient-to-r from-emerald-500/30 to-cyan-500/30 text-emerald-200'"
-                :disabled="!gmailConfig.email || !hasGmailChanges">
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Codementor Configuration -->
-        <div class="bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-2xl border border-emerald-500/20 p-8">
-          <div class="flex items-center mb-6">
-            <div class="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center mr-4">
-              <Icon name="lucide:code" class="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h3 class="text-2xl font-thin text-slate-100">Codementor Integration</h3>
-              <p class="text-slate-400 font-light">Configure your Codementor account credentials</p>
-            </div>
+          <div v-else-if="interestSubmissions.length === 0" class="text-center py-8">
+            <p class="text-slate-400">No interest submissions yet.</p>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-2">Access Token</label>
-              <input v-model="codementorConfig.access_token" type="password"
-                placeholder="Your Codementor access token"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors">
-            </div>
-
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-2">Refresh Token</label>
-              <input v-model="codementorConfig.refresh_token" type="password"
-                placeholder="Your Codementor refresh token"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors">
-            </div>
-          </div>
-
-          <div class="mt-4 p-4 bg-slate-700/30 rounded-xl border border-slate-600/30">
-            <div class="flex items-start space-x-3">
-              <Icon name="lucide:info" class="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
-              <div class="text-sm text-slate-300">
-                <p class="font-medium text-blue-400 mb-1">Token Authentication</p>
-                <p>Get these tokens from your Codementor cookies in your browser. The system will automatically refresh the access token when needed.</p>
+          <div v-else class="space-y-4">
+            <div v-for="submission in interestSubmissions" :key="submission.id"
+              class="bg-slate-700/50 rounded-xl p-6 border border-slate-600/30">
+              <div class="flex justify-between items-start mb-4">
+                <div>
+                  <h4 class="text-lg font-light text-slate-100">{{ submission.name }}</h4>
+                  <p class="text-sm text-slate-400">{{ submission.email }}</p>
+                  <p class="text-xs text-slate-500 mt-1">{{ formatDate(submission.created_at) }}</p>
+                </div>
+                <select v-model="submission.status" @change="updateSubmissionStatus(submission)"
+                  class="bg-slate-600 border border-emerald-500/30 rounded-lg px-3 py-1 text-sm text-slate-100">
+                  <option value="pending">Pending</option>
+                  <option value="contacted">Contacted</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                </select>
               </div>
-            </div>
-          </div>
 
-          <!-- Codementor Rate Limiting -->
-          <div class="mt-6 pt-6 border-t border-slate-600/30">
-            <h4 class="text-lg font-light text-slate-200 mb-4">Rate Limiting</h4>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div v-if="submission.message" class="mb-4">
+                <p class="text-sm text-slate-300 font-light whitespace-pre-wrap">{{ submission.message }}</p>
+              </div>
+
               <div>
-                <label class="block text-sm font-light text-slate-300 mb-2">Max Concurrent Messages</label>
-                <input v-model.number="userConfig.codementor_max_concurrent" type="number" min="1"
-                  class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors"
-                  placeholder="1">
-                <p class="mt-2 text-xs text-slate-400 font-light">Maximum number of Codementor messages that can be sent at the same time</p>
-              </div>
-              <div>
-                <label class="block text-sm font-light text-slate-300 mb-2">Send Interval (seconds)</label>
-                <input v-model.number="userConfig.codementor_send_interval" type="number" min="1"
-                  class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors"
-                  placeholder="5">
-                <p class="mt-2 text-xs text-slate-400 font-light">Interval in seconds between sending Codementor messages</p>
+                <label class="block text-xs font-light text-slate-400 mb-2">Internal Notes</label>
+                <textarea v-model="submission.notes" @blur="updateSubmissionNotes(submission)"
+                  class="w-full bg-slate-600/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-sm text-slate-100 resize-none"
+                  rows="2" placeholder="Add internal notes..."></textarea>
               </div>
             </div>
           </div>
-
-          <div class="flex items-center justify-between mt-6">
-            <div class="flex items-center space-x-2">
-              <div class="w-2 h-2 rounded-full"
-                :class="codementorConfig.access_token && codementorConfig.refresh_token ? 'bg-emerald-400' : 'bg-slate-500'">
-              </div>
-              <span class="text-sm text-slate-300 font-light">
-                {{ codementorConfig.access_token && codementorConfig.refresh_token ? 'Configured' : 'Not configured' }}
-              </span>
-            </div>
-            <div class="flex space-x-3">
-              <button @click="importCodementorContacts"
-                class="px-4 py-2 bg-purple-600/50 text-purple-300 rounded-lg font-light hover:bg-purple-600/70 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                :disabled="!codementorConfig.access_token || !codementorConfig.refresh_token || importingCodementor">
-                <Icon name="lucide:download" class="w-4 h-4 inline mr-1" />
-                {{ importingCodementor ? 'Importing...' : 'Import Contacts' }}
-              </button>
-              <button @click="testCodementorConnection"
-                class="px-4 py-2 bg-blue-600/50 text-blue-300 rounded-lg font-light hover:bg-blue-600/70 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                :disabled="!codementorConfig.access_token || !codementorConfig.refresh_token">
-                Test
-              </button>
-              <button @click="saveCodementorSettings"
-                class="px-4 py-2 rounded-lg font-light transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                :class="hasCodementorChanges ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-white hover:shadow-lg' : 'bg-gradient-to-r from-emerald-500/30 to-cyan-500/30 text-emerald-200'"
-                :disabled="!codementorConfig.access_token || !hasCodementorChanges">
-                Save
-              </button>
-            </div>
-          </div>
         </div>
-      </div>
-
-      <!-- Automation Settings -->
-      <div id="automation" class="bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-2xl border border-emerald-500/20 p-8 scroll-mt-6">
-        <div class="flex items-center mb-6">
-          <div class="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center mr-4">
-            <Icon name="lucide:zap" class="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h3 class="text-2xl font-thin text-slate-100">Automation Settings</h3>
-            <p class="text-slate-400 font-light">Configure how and when follow-ups are sent</p>
-          </div>
-        </div>
-
-        <div class="space-y-6">
-          <div class="flex items-center justify-between">
-            <div>
-              <h4 class="text-lg font-light text-slate-100">Enable Background Scheduler</h4>
-              <p class="text-sm text-slate-400">Run the background service that checks for and sends scheduled follow-ups</p>
-            </div>
-            <label class="relative inline-flex items-center cursor-pointer">
-              <input v-model="automationConfig.enabled" type="checkbox" class="sr-only peer">
-              <div class="w-11 h-6 bg-slate-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-300/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-            </label>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-2">Check Interval (minutes)</label>
-              <input v-model="automationConfig.check_interval" type="number" min="1" max="1440"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 focus:border-emerald-400 focus:outline-none transition-colors">
-            </div>
-
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-2">Max Retries</label>
-              <input v-model="automationConfig.max_retries" type="number" min="1" max="10"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 focus:border-emerald-400 focus:outline-none transition-colors">
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-sm font-light text-slate-300 mb-2">Default Timezone</label>
-            <select v-model="automationConfig.timezone"
-              class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 focus:border-emerald-400 focus:outline-none transition-colors">
-              <option value="UTC">UTC</option>
-              <option value="America/New_York">Eastern Time</option>
-              <option value="America/Chicago">Central Time</option>
-              <option value="America/Denver">Mountain Time</option>
-              <option value="America/Los_Angeles">Pacific Time</option>
-              <option value="Europe/London">London</option>
-              <option value="Europe/Paris">Paris</option>
-              <option value="Asia/Tokyo">Tokyo</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="flex justify-end mt-6">
-          <button @click="saveAutomationSettings"
-            class="px-6 py-3 rounded-xl font-light transition-all duration-300"
-            :class="hasAutomationChanges ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-white hover:shadow-lg' : 'bg-gradient-to-r from-emerald-500/30 to-cyan-500/30 text-emerald-200'"
-            :disabled="!hasAutomationChanges">
-            Save Automation Settings
-          </button>
-        </div>
-      </div>
-
-      <!-- Interest Submissions Section (Superuser Only) -->
-      <div v-if="isSuperuser" id="interest-submissions"
-        class="bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-2xl border border-emerald-500/20 p-8 scroll-mt-6">
-        <div class="flex items-center mb-6">
-          <div
-            class="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center mr-4">
-            <Icon name="lucide:users" class="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h3 class="text-2xl font-thin text-slate-100">Interest Submissions</h3>
-            <p class="text-slate-400 font-light">Manage interest form submissions</p>
-          </div>
-        </div>
-
-        <div v-if="loadingSubmissions" class="text-center py-8">
-          <Icon name="lucide:loader-2" class="w-8 h-8 text-emerald-400 animate-spin mx-auto" />
-          <p class="text-slate-400 mt-4">Loading submissions...</p>
-        </div>
-
-        <div v-else-if="interestSubmissions.length === 0" class="text-center py-8">
-          <p class="text-slate-400">No interest submissions yet.</p>
-        </div>
-
-        <div v-else class="space-y-4">
-          <div v-for="submission in interestSubmissions" :key="submission.id"
-            class="bg-slate-700/50 rounded-xl p-6 border border-slate-600/30">
-            <div class="flex justify-between items-start mb-4">
-              <div>
-                <h4 class="text-lg font-light text-slate-100">{{ submission.name }}</h4>
-                <p class="text-sm text-slate-400">{{ submission.email }}</p>
-                <p class="text-xs text-slate-500 mt-1">{{ formatDate(submission.created_at) }}</p>
-              </div>
-              <select v-model="submission.status" @change="updateSubmissionStatus(submission)"
-                class="bg-slate-600 border border-emerald-500/30 rounded-lg px-3 py-1 text-sm text-slate-100">
-                <option value="pending">Pending</option>
-                <option value="contacted">Contacted</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-              </select>
-            </div>
-            
-            <div v-if="submission.message" class="mb-4">
-              <p class="text-sm text-slate-300 font-light whitespace-pre-wrap">{{ submission.message }}</p>
-            </div>
-
-            <div>
-              <label class="block text-xs font-light text-slate-400 mb-2">Internal Notes</label>
-              <textarea v-model="submission.notes" @blur="updateSubmissionNotes(submission)"
-                class="w-full bg-slate-600/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-sm text-slate-100 resize-none"
-                rows="2" placeholder="Add internal notes..."></textarea>
-            </div>
-          </div>
-        </div>
-      </div>
 
         <!-- Save Settings -->
         <div class="flex justify-center">
@@ -425,8 +160,7 @@
           <span>{{ statusMessage }}</span>
         </div>
         <div class="w-full bg-slate-600/50 rounded-full h-1 mt-2">
-          <div
-            class="bg-gradient-to-r from-emerald-400 to-cyan-400 h-1 rounded-full transition-all duration-100"
+          <div class="bg-gradient-to-r from-emerald-400 to-cyan-400 h-1 rounded-full transition-all duration-100"
             :style="{ width: statusProgress + '%' }"></div>
         </div>
       </div>
@@ -454,7 +188,7 @@ const importingCodementor = ref(false)
 const gmailConfig = ref({ ...settings.value.gmail })
 const codementorConfig = ref({ ...settings.value.codementor })
 const automationConfig = ref({ ...settings.value.automation })
-const userConfig = ref({ 
+const userConfig = ref({
   timezone: settings.value.user?.timezone || 'UTC',
   footer: settings.value.user?.footer || '',
   codementor_max_concurrent: settings.value.user?.codementor_max_concurrent || 1,
@@ -465,7 +199,7 @@ const userConfig = ref({
 const originalGmail = ref({ ...settings.value.gmail })
 const originalCodementor = ref({ ...settings.value.codementor })
 const originalAutomation = ref({ ...settings.value.automation })
-const originalUser = ref({ 
+const originalUser = ref({
   timezone: settings.value.user?.timezone || 'UTC',
   footer: settings.value.user?.footer || '',
   codementor_max_concurrent: settings.value.user?.codementor_max_concurrent || 1,
@@ -484,7 +218,7 @@ watch(settings, (newSettings) => {
   gmailConfig.value = { ...newSettings.gmail }
   codementorConfig.value = { ...newSettings.codementor }
   automationConfig.value = { ...newSettings.automation }
-  userConfig.value = { 
+  userConfig.value = {
     timezone: newSettings.user?.timezone || 'UTC',
     footer: newSettings.user?.footer || '',
     codementor_max_concurrent: newSettings.user?.codementor_max_concurrent || 1,
@@ -495,7 +229,7 @@ watch(settings, (newSettings) => {
   originalGmail.value = { ...newSettings.gmail }
   originalCodementor.value = { ...newSettings.codementor }
   originalAutomation.value = { ...newSettings.automation }
-  originalUser.value = { 
+  originalUser.value = {
     timezone: newSettings.user?.timezone || 'UTC',
     footer: newSettings.user?.footer || '',
     codementor_max_concurrent: newSettings.user?.codementor_max_concurrent || 1,
@@ -548,7 +282,7 @@ const scrollToSection = (sectionId) => {
 // Track active section on scroll
 const handleScroll = () => {
   const scrollPosition = window.scrollY + 200 // Offset for better detection
-  
+
   // If near the top, set to user-settings
   if (scrollPosition < 300) {
     activeSection.value = 'user-settings'
@@ -651,10 +385,10 @@ const importCodementorContacts = async () => {
     const data = await apiCall('/settings/import/codementor/', {
       method: 'POST'
     })
-    
+
     const message = `Import completed: ${data.created} created, ${data.updated} updated${data.errors.length > 0 ? `. ${data.errors.length} errors` : ''}`
     showStatusWithProgress(message, 5000)
-    
+
     // Reload contacts if available
     const { loadContacts } = useApi()
     try {
@@ -695,7 +429,7 @@ const saveGmailSettings = async () => {
 const saveCodementorSettings = async () => {
   try {
     showStatusWithProgress('Saving Codementor settings...', 3000)
-    
+
     // Save Codementor credentials
     await apiCall('/settings/codementor/', {
       method: 'POST',
@@ -756,7 +490,7 @@ const saveUserSettings = async () => {
     await loadSettings()
 
     // Update original values from reloaded settings
-    originalUser.value = { 
+    originalUser.value = {
       timezone: settings.value.user?.timezone || 'UTC',
       footer: settings.value.user?.footer || '',
       codementor_max_concurrent: settings.value.user?.codementor_max_concurrent || 1,
@@ -775,19 +509,19 @@ const saveUserSettings = async () => {
 const handleChangePassword = async () => {
   passwordError.value = ''
   passwordSuccess.value = ''
-  
+
   // Validate passwords match
   if (passwordChange.value.newPassword !== passwordChange.value.confirmPassword) {
     passwordError.value = 'New passwords do not match'
     return
   }
-  
+
   // Validate password length
   if (passwordChange.value.newPassword.length < 8) {
     passwordError.value = 'New password must be at least 8 characters'
     return
   }
-  
+
   try {
     const response = await apiFetch('/auth/change-password/', {
       method: 'POST',
@@ -796,7 +530,7 @@ const handleChangePassword = async () => {
         new_password: passwordChange.value.newPassword
       })
     })
-    
+
     if (response.ok) {
       const data = await response.json()
       passwordSuccess.value = 'Password changed successfully!'
@@ -876,7 +610,7 @@ const saveSettings = async () => {
     originalGmail.value = { ...settings.value.gmail }
     originalCodementor.value = { ...settings.value.codementor }
     originalAutomation.value = { ...settings.value.automation }
-    originalUser.value = { 
+    originalUser.value = {
       timezone: settings.value.user?.timezone || 'UTC',
       footer: settings.value.user?.footer || '',
       codementor_max_concurrent: settings.value.user?.codementor_max_concurrent || 1,
@@ -905,13 +639,13 @@ onMounted(() => {
     originalAutomation.value = { ...settings.value.automation }
   }
   if (settings.value && settings.value.user) {
-    userConfig.value = { 
+    userConfig.value = {
       timezone: settings.value.user.timezone || 'UTC',
       footer: settings.value.user.footer || '',
       codementor_max_concurrent: settings.value.user.codementor_max_concurrent || 1,
       codementor_send_interval: settings.value.user.codementor_send_interval || 5
     }
-    originalUser.value = { 
+    originalUser.value = {
       timezone: settings.value.user.timezone || 'UTC',
       footer: settings.value.user.footer || '',
       codementor_max_concurrent: settings.value.user.codementor_max_concurrent || 1,

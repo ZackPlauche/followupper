@@ -1,129 +1,64 @@
 <template>
   <div>
-    <div class="mb-8">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-3xl font-thin text-slate-100">Contacts</h2>
-        <div class="flex gap-3">
+    <div class="mb-6 sm:mb-8">
+      <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4">
+        <h2 class="text-2xl sm:text-3xl font-thin text-slate-100">Contacts</h2>
+        <div class="flex flex-wrap gap-2 sm:gap-3 ml-auto">
           <button @click="showFilters = !showFilters"
-            :class="['bg-slate-700/50 border text-slate-300 px-6 py-3 rounded-xl font-light hover:border-emerald-500/50 hover:text-emerald-400 transition-all duration-300', showFilters ? 'border-emerald-500/50 text-emerald-400' : 'border-emerald-500/30']">
-            <Icon name="lucide:sliders-horizontal" class="w-5 h-5 inline mr-2" />
-            Filters
-            <span v-if="hasActiveFilters" class="ml-2 px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-xs">
+            :class="['bg-slate-700/50 border text-slate-300 px-4 py-2.5 rounded-xl font-light hover:border-emerald-500/50 hover:text-emerald-400 transition-all duration-300 text-sm sm:text-base flex items-center justify-center gap-1.5 sm:gap-2 h-10', showFilters ? 'border-emerald-500/50 text-emerald-400' : 'border-emerald-500/30']">
+            <Icon name="lucide:sliders-horizontal" class="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+            <span class="hidden sm:inline">Filters</span>
+            <span v-if="hasActiveFilters"
+              class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-xs">
               {{ activeFilterCount }}
             </span>
           </button>
           <button v-if="selectedContactIds.size > 0" @click="openBulkEditModal"
-            class="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-3 rounded-xl font-light hover:shadow-lg transition-all duration-300 hover:scale-105">
-            Bulk Edit ({{ selectedContactIds.size }})
+            class="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2.5 rounded-xl font-light hover:shadow-lg transition-all duration-300 hover:scale-105 text-sm sm:text-base h-10 flex items-center justify-center">
+            <span class="hidden sm:inline">Bulk Edit</span>
+            <span class="sm:hidden">Edit</span>
+            <span class="ml-1">({{ selectedContactIds.size }})</span>
           </button>
           <button v-if="selectedContactIds.size > 0" @click="openBulkMessageModal"
-            class="bg-gradient-to-r from-blue-500 to-cyan-500 text-white px-6 py-3 rounded-xl font-light hover:shadow-lg transition-all duration-300 hover:scale-105">
-            Bulk Message ({{ selectedContactIds.size }})
+            class="bg-gradient-to-r from-blue-500 to-cyan-500 text-white px-4 py-2.5 rounded-xl font-light hover:shadow-lg transition-all duration-300 hover:scale-105 text-sm sm:text-base h-10 flex items-center justify-center">
+            <span class="hidden sm:inline">Bulk Message</span>
+            <span class="sm:hidden">Message</span>
+            <span class="ml-1">({{ selectedContactIds.size }})</span>
           </button>
           <button v-if="selectedContactIds.size > 0" @click="handleBulkDelete"
-            class="bg-gradient-to-r from-red-500 to-orange-500 text-white px-6 py-3 rounded-xl font-light hover:shadow-lg transition-all duration-300 hover:scale-105">
-            Bulk Delete ({{ selectedContactIds.size }})
+            class="bg-gradient-to-r from-red-500 to-orange-500 text-white px-4 py-2.5 rounded-xl font-light hover:shadow-lg transition-all duration-300 hover:scale-105 text-sm sm:text-base h-10 flex items-center justify-center">
+            <span class="hidden sm:inline">Bulk Delete</span>
+            <span class="sm:hidden">Delete</span>
+            <span class="ml-1">({{ selectedContactIds.size }})</span>
           </button>
           <button @click="exportContacts"
-            class="bg-slate-700/50 border border-emerald-500/30 text-slate-300 px-6 py-3 rounded-xl font-light hover:border-emerald-500/50 hover:text-emerald-400 transition-all duration-300">
-            <Icon name="lucide:upload" class="w-5 h-5 inline mr-2" />
-            Export
+            class="bg-slate-700/50 border border-emerald-500/30 text-slate-300 px-4 py-2.5 rounded-xl font-light hover:border-emerald-500/50 hover:text-emerald-400 transition-all duration-300 text-sm sm:text-base h-10 flex items-center justify-center gap-1.5 sm:gap-2">
+            <Icon name="lucide:upload" class="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+            <span class="hidden sm:inline">Export</span>
           </button>
           <button @click="showImportModal = true"
-            class="bg-slate-700/50 border border-emerald-500/30 text-slate-300 px-6 py-3 rounded-xl font-light hover:border-emerald-500/50 hover:text-emerald-400 transition-all duration-300">
-            <Icon name="lucide:download" class="w-5 h-5 inline mr-2" />
-            Import
+            class="bg-slate-700/50 border border-emerald-500/30 text-slate-300 px-4 py-2.5 rounded-xl font-light hover:border-emerald-500/50 hover:text-emerald-400 transition-all duration-300 text-sm sm:text-base h-10 flex items-center justify-center gap-1.5 sm:gap-2">
+            <Icon name="lucide:download" class="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+            <span class="hidden sm:inline">Import</span>
           </button>
           <button @click="showContactForm = true"
-            class="bg-gradient-to-r from-emerald-500 to-cyan-500 text-white px-6 py-3 rounded-xl font-light hover:shadow-lg transition-all duration-300 hover:scale-105">
-            + Add Contact
+            class="bg-gradient-to-r from-emerald-500 to-cyan-500 text-white px-4 py-2.5 rounded-xl font-light hover:shadow-lg transition-all duration-300 hover:scale-105 text-sm sm:text-base h-10 flex items-center justify-center">
+            <span class="sm:hidden">+</span>
+            <span class="hidden sm:inline">+ Add Contact</span>
           </button>
         </div>
       </div>
 
       <!-- Filters Panel (Collapsible) -->
-      <div v-show="showFilters" class="bg-slate-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-emerald-500/20 mb-4 overflow-hidden">
-        <div class="p-6">
-          <!-- Search Bar - Full Width -->
-          <div class="mb-6">
-            <label class="block text-sm font-light text-slate-300 mb-2">Search</label>
-            <input v-model="filterSearch" type="text" placeholder="Search by name..."
-              class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-4 py-2.5 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors">
-          </div>
-
-          <!-- Filter Grid -->
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          <!-- Platform Filter -->
-          <div class="bg-slate-700/30 rounded-lg p-3 border border-slate-600/30">
-            <label class="block text-xs font-light text-emerald-400 mb-2 uppercase tracking-wider">Platform</label>
-            <div class="space-y-2">
-              <label class="flex items-center gap-2 cursor-pointer group">
-                <input type="checkbox" v-model="filterPlatform" value="email"
-                  class="w-4 h-4 rounded border cursor-pointer focus:ring-2 focus:ring-emerald-500" />
-                <span class="text-slate-300 text-xs group-hover:text-slate-100 transition-colors">Email</span>
-              </label>
-              <label class="flex items-center gap-2 cursor-pointer group">
-                <input type="checkbox" v-model="filterPlatform" value="codementor"
-                  class="w-4 h-4 rounded border cursor-pointer focus:ring-2 focus:ring-emerald-500" />
-                <span class="text-slate-300 text-xs group-hover:text-slate-100 transition-colors">Codementor</span>
-              </label>
-            </div>
-          </div>
-
-          <!-- Status Filter -->
-          <div class="bg-slate-700/30 rounded-lg p-3 border border-slate-600/30">
-            <label class="block text-xs font-light text-emerald-400 mb-2 uppercase tracking-wider">Status</label>
-            <select v-model="filterStatus"
-              class="w-full bg-slate-600/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm focus:border-emerald-400 focus:outline-none transition-colors [&>option]:bg-slate-700 [&>option]:text-slate-100">
-              <option value="">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
-
-          <!-- Source Filter -->
-          <div class="bg-slate-700/30 rounded-lg p-3 border border-slate-600/30">
-            <label class="block text-xs font-light text-emerald-400 mb-2 uppercase tracking-wider">Source</label>
-            <div class="space-y-2 max-h-32 overflow-y-auto pr-1">
-              <label v-for="source in availableSources" :key="source || '__empty__'" class="flex items-center gap-2 cursor-pointer group">
-                <input type="checkbox" v-model="filterSource" :value="source === '' ? '__empty__' : source"
-                  class="w-4 h-4 rounded border cursor-pointer focus:ring-2 focus:ring-emerald-500" />
-                <span class="text-slate-300 text-xs group-hover:text-slate-100 transition-colors">{{ source || '(empty)' }}</span>
-              </label>
-            </div>
-          </div>
-
-          <!-- Favorite Filter -->
-          <div class="bg-slate-700/30 rounded-lg p-3 border border-slate-600/30">
-            <label class="block text-xs font-light text-emerald-400 mb-2 uppercase tracking-wider">Favorite</label>
-            <select v-model="filterFavorite"
-              class="w-full bg-slate-600/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm focus:border-emerald-400 focus:outline-none transition-colors [&>option]:bg-slate-700 [&>option]:text-slate-100">
-              <option value="">All</option>
-              <option value="true">Favorites Only</option>
-            </select>
-          </div>
-
-          <!-- Last Messaged Filter -->
-          <div class="bg-slate-700/30 rounded-lg p-3 border border-slate-600/30">
-            <label class="block text-xs font-light text-emerald-400 mb-2 uppercase tracking-wider">Last Messaged</label>
-            <select v-model="filterLastMessaged"
-              class="w-full bg-slate-600/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm focus:border-emerald-400 focus:outline-none transition-colors [&>option]:bg-slate-700 [&>option]:text-slate-100">
-              <option value="">All</option>
-              <option value="never">Never</option>
-              <option value="today">Today</option>
-              <option value="last_7_days">Last 7 days</option>
-              <option value="last_30_days">Last 30 days</option>
-              <option value="last_90_days">Last 90 days</option>
-              <option value="over_90_days">Over 90 days ago</option>
-            </select>
-          </div>
-        </div>
-      </div>
+      <ContactFilters :show="showFilters" :filters="filterData" :available-sources="availableSources"
+        @update:filters="updateFilters" />
     </div>
 
     <!-- Contacts List -->
-    <div class="bg-slate-800/50 backdrop-blur-sm rounded-2xl shadow-2xl border border-emerald-500/20 overflow-hidden">
-      <div class="overflow-x-auto">
+    <div
+      class="bg-slate-800/50 backdrop-blur-sm rounded-xl sm:rounded-2xl shadow-2xl border border-emerald-500/20 overflow-hidden">
+      <!-- Desktop Table View -->
+      <div class="hidden md:block overflow-x-auto">
         <table class="min-w-full divide-y divide-emerald-500/20">
           <thead class="bg-slate-700/50">
             <tr>
@@ -149,10 +84,10 @@
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm font-light text-slate-100">
                 <div class="flex items-center gap-2">
-                  <button @click="toggleFavorite(contact)"
-                    class="transition group"
+                  <button @click="toggleFavorite(contact)" class="transition group"
                     :class="contact.is_favorite ? '' : 'opacity-30 hover:opacity-100'">
-                    <Icon :name="contact.is_favorite ? 'mdi:star' : 'mdi:star-outline'" class="w-4 h-4 text-yellow-400 group-hover:text-yellow-300" />
+                    <Icon :name="contact.is_favorite ? 'mdi:star' : 'mdi:star-outline'"
+                      class="w-4 h-4 text-yellow-400 group-hover:text-yellow-300" />
                   </button>
                   <button @click="openContactProfile(contact)"
                     class="hover:text-emerald-400 transition-colors cursor-pointer">
@@ -194,749 +129,113 @@
           </tbody>
         </table>
       </div>
+
+      <!-- Mobile Card View -->
+      <div class="md:hidden">
+        <!-- Select All Header -->
+        <div class="bg-slate-700/50 p-4 mb-2 rounded-t-xl">
+          <div class="flex items-center gap-2">
+            <input type="checkbox" :checked="isAllSelected" @change="toggleSelectAll"
+              class="w-4 h-4 rounded border cursor-pointer focus:ring-2 focus:ring-emerald-500" />
+            <span class="text-sm font-light text-emerald-400">Select All</span>
+          </div>
+        </div>
+        <div class="divide-y divide-emerald-500/10">
+          <div v-for="contact in filteredContacts" :key="contact.id" class="p-4 hover:bg-slate-700/30 transition-colors">
+          <div class="flex items-start justify-between mb-3">
+            <div class="flex items-center gap-2 flex-1">
+              <input type="checkbox" :checked="selectedContactIds.has(contact.id)"
+                @change="toggleContactSelection(contact.id)"
+                class="w-4 h-4 rounded border cursor-pointer focus:ring-2 focus:ring-emerald-500 mt-1" />
+              <button @click="toggleFavorite(contact)" class="transition group"
+                :class="contact.is_favorite ? '' : 'opacity-30 hover:opacity-100'">
+                <Icon :name="contact.is_favorite ? 'mdi:star' : 'mdi:star-outline'"
+                  class="w-4 h-4 text-yellow-400 group-hover:text-yellow-300" />
+              </button>
+              <button @click="openContactProfile(contact)"
+                class="text-slate-100 hover:text-emerald-400 transition-colors cursor-pointer font-medium">
+                {{ contact.name }}
+              </button>
+            </div>
+            <span
+              :class="contact.is_active ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'"
+              class="inline-flex px-2 py-1 text-xs font-light rounded-full">
+              {{ contact.is_active ? 'Active' : 'Inactive' }}
+            </span>
+          </div>
+          <div class="flex items-center gap-3 mb-3">
+            <div :class="contact.email ? '' : 'opacity-40'">
+              <Icon name="lucide:mail" class="w-4 h-4" :class="contact.email ? 'text-slate-300' : 'text-slate-500'" />
+            </div>
+            <div :class="contact.codementor_username ? '' : 'opacity-40'">
+              <Icon name="simple-icons:codementor" class="w-4 h-4"
+                :class="contact.codementor_username ? 'text-slate-300' : 'text-slate-500'" />
+            </div>
+          </div>
+          <div class="text-xs text-slate-400 mb-3">
+            Last messaged: {{ formatLastMessaged(contact.last_messaged) }}
+          </div>
+          <div class="flex gap-3">
+            <button @click="openQuickSendModal(contact)"
+              class="flex-1 text-center px-3 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors text-sm">
+              Send
+            </button>
+            <button @click="editContact(contact)"
+              class="flex-1 text-center px-3 py-2 bg-emerald-500/20 text-emerald-400 rounded-lg hover:bg-emerald-500/30 transition-colors text-sm">
+              Edit
+            </button>
+            <button @click="handleDeleteContact(contact.id)"
+              class="flex-1 text-center px-3 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors text-sm">
+              Delete
+            </button>
+          </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Contact Form Modal -->
-    <div v-if="showContactForm"
-      class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div
-        class="bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-2xl border border-emerald-500/20 w-full max-w-md max-h-[90vh] flex flex-col">
-        <div class="p-6 border-b border-slate-700/50">
-          <h3 class="text-2xl font-thin text-slate-100">Add Contact</h3>
-        </div>
-
-        <div class="flex-1 overflow-y-auto p-6">
-          <form @submit.prevent="handleSaveContact" class="space-y-3">
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-1">Name *</label>
-              <input v-model="newContact.name" type="text" required
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors">
-            </div>
-
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-1">Preferred Name</label>
-              <input v-model="newContact.preferred_name" type="text"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors"
-                placeholder="Leave blank to use first name">
-            </div>
-
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-1">Gender</label>
-              <div class="flex items-center bg-slate-700/50 rounded-lg p-1 border border-slate-500/30 w-fit">
-                <button type="button" @click="newContact.gender = ''"
-                  :class="newContact.gender === '' ? 'bg-slate-500/50 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
-                  class="px-3 py-1.5 rounded-md transition-colors text-xs font-light">
-                  Not specified
-                </button>
-                <button type="button" @click="newContact.gender = 'male'"
-                  :class="newContact.gender === 'male' ? 'bg-slate-500/50 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
-                  class="px-3 py-1.5 rounded-md transition-colors text-xs font-light">
-                  Male
-                </button>
-                <button type="button" @click="newContact.gender = 'female'"
-                  :class="newContact.gender === 'female' ? 'bg-slate-500/50 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
-                  class="px-3 py-1.5 rounded-md transition-colors text-xs font-light">
-                  Female
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-1">Email</label>
-              <input v-model="newContact.email" type="email"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors">
-            </div>
-
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-1">Codementor Username</label>
-              <input v-model="newContact.codementor_username" type="text"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors">
-            </div>
-
-            <div>
-              <PlatformMultiSelect v-model="newContact.platform_preference" :available-platforms="availablePlatforms"
-                label="Platform Preference" />
-            </div>
-
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-1">Timezone</label>
-              <select v-model="newContact.timezone"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm focus:border-emerald-400 focus:outline-none transition-colors [&>option]:bg-slate-700 [&>option]:text-slate-100">
-                <option value="UTC">UTC</option>
-                <option value="America/New_York">Eastern Time (ET)</option>
-                <option value="America/Chicago">Central Time (CT)</option>
-                <option value="America/Denver">Mountain Time (MT)</option>
-                <option value="America/Los_Angeles">Pacific Time (PT)</option>
-                <option value="Europe/London">London (GMT)</option>
-                <option value="Europe/Paris">Paris (CET)</option>
-                <option value="Asia/Tokyo">Tokyo (JST)</option>
-                <option value="Asia/Shanghai">Shanghai (CST)</option>
-                <option value="Australia/Sydney">Sydney (AEST)</option>
-              </select>
-            </div>
-
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-1">Notes</label>
-              <textarea v-model="newContact.notes" rows="3"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors resize-none"></textarea>
-            </div>
-
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-1">Source</label>
-              <input v-model="newContact.source" type="text"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors"
-                placeholder="e.g., manual, codementor, csv">
-            </div>
-          </form>
-        </div>
-
-        <div class="p-6 border-t border-slate-700/50 flex space-x-3">
-          <button type="button" @click="showContactForm = false"
-            class="flex-1 bg-slate-600/50 text-slate-300 px-4 py-2 rounded-lg text-sm font-light hover:bg-slate-600/70 transition-colors">
-            Cancel
-          </button>
-          <button @click="handleSaveContact"
-            class="flex-1 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white px-4 py-2 rounded-lg text-sm font-light hover:shadow-lg transition-all duration-300">
-            Save Contact
-          </button>
-        </div>
-      </div>
-    </div>
+    <ContactFormModal :show="showContactForm" :available-platforms="availablePlatforms" @close="showContactForm = false"
+      @save="handleSaveContact" />
 
     <!-- Edit Contact Form Modal -->
-    <div v-if="showEditContactForm"
-      class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div
-        class="bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-2xl border border-emerald-500/20 w-full max-w-md max-h-[90vh] flex flex-col">
-        <div class="p-6 border-b border-slate-700/50">
-          <h3 class="text-2xl font-thin text-slate-100">Edit Contact</h3>
-        </div>
-
-        <div class="flex-1 overflow-y-auto p-6">
-          <form @submit.prevent="handleUpdateContact" class="space-y-3">
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-1">Name *</label>
-              <input v-model="newContact.name" type="text" required
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors">
-            </div>
-
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-1">Preferred Name</label>
-              <input v-model="newContact.preferred_name" type="text"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors"
-                placeholder="Leave blank to use first name">
-            </div>
-
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-1">Gender</label>
-              <div class="flex items-center bg-slate-700/50 rounded-lg p-1 border border-slate-500/30 w-fit">
-                <button type="button" @click="newContact.gender = ''"
-                  :class="newContact.gender === '' ? 'bg-slate-500/50 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
-                  class="px-3 py-1.5 rounded-md transition-colors text-xs font-light">
-                  Not specified
-                </button>
-                <button type="button" @click="newContact.gender = 'male'"
-                  :class="newContact.gender === 'male' ? 'bg-slate-500/50 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
-                  class="px-3 py-1.5 rounded-md transition-colors text-xs font-light">
-                  Male
-                </button>
-                <button type="button" @click="newContact.gender = 'female'"
-                  :class="newContact.gender === 'female' ? 'bg-slate-500/50 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
-                  class="px-3 py-1.5 rounded-md transition-colors text-xs font-light">
-                  Female
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-1">Email</label>
-              <input v-model="newContact.email" type="email"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors">
-            </div>
-
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-1">Codementor Username</label>
-              <input v-model="newContact.codementor_username" type="text"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors">
-            </div>
-
-            <div>
-              <PlatformMultiSelect v-model="newContact.platform_preference" :available-platforms="availablePlatforms"
-                label="Platform Preference" />
-            </div>
-
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-1">Timezone</label>
-              <select v-model="newContact.timezone"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm focus:border-emerald-400 focus:outline-none transition-colors [&>option]:bg-slate-700 [&>option]:text-slate-100">
-                <option value="UTC">UTC</option>
-                <option value="America/New_York">Eastern Time (ET)</option>
-                <option value="America/Chicago">Central Time (CT)</option>
-                <option value="America/Denver">Mountain Time (MT)</option>
-                <option value="America/Los_Angeles">Pacific Time (PT)</option>
-                <option value="Europe/London">London (GMT)</option>
-                <option value="Europe/Paris">Paris (CET)</option>
-                <option value="Asia/Tokyo">Tokyo (JST)</option>
-                <option value="Asia/Shanghai">Shanghai (CST)</option>
-                <option value="Australia/Sydney">Sydney (AEST)</option>
-              </select>
-            </div>
-
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-1">Notes</label>
-              <textarea v-model="newContact.notes" rows="3"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors resize-none"></textarea>
-            </div>
-
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-1">Source</label>
-              <input v-model="newContact.source" type="text"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors"
-                placeholder="e.g., manual, codementor, csv">
-            </div>
-          </form>
-        </div>
-
-        <div class="p-6 border-t border-slate-700/50 flex space-x-3">
-          <button type="button" @click="showEditContactForm = false"
-            class="flex-1 bg-slate-600/50 text-slate-300 px-4 py-2 rounded-lg text-sm font-light hover:bg-slate-600/70 transition-colors">
-            Cancel
-          </button>
-          <button @click="handleUpdateContact"
-            class="flex-1 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white px-4 py-2 rounded-lg text-sm font-light hover:shadow-lg transition-all duration-300">
-            Update Contact
-          </button>
-        </div>
-      </div>
-    </div>
+    <ContactFormModal :show="showEditContactForm" :contact="editingContact" :available-platforms="availablePlatforms"
+      @close="showEditContactForm = false; editingContact = null" @save="handleUpdateContact" />
 
     <!-- Quick Send Modal -->
-    <div v-if="showQuickSendModal"
-      class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div
-        class="bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-2xl border border-emerald-500/20 w-full max-w-md max-h-[90vh] flex flex-col">
-        <div class="p-6 border-b border-slate-700/50 flex items-center justify-between">
-          <h3 class="text-2xl font-thin text-slate-100">Send Message to {{ selectedContact?.name }}</h3>
-          <button @click="closeQuickSendModal" class="text-slate-400 hover:text-slate-200 transition-colors">
-            <Icon name="material-symbols:close" class="w-6 h-6" />
-          </button>
-        </div>
-
-        <div class="flex-1 overflow-y-auto p-6">
-          <div class="space-y-3">
-            <!-- Mode Toggle -->
-            <div class="flex items-center justify-between mb-4">
-              <h4 class="text-lg font-light text-slate-100">{{ quickSendIsChainMode ? 'Send Message Chain' : 'Send Message' }}</h4>
-              <div class="flex items-center bg-slate-700/50 rounded-lg p-1 border border-slate-500/30">
-                <button type="button" @click="quickSendIsChainMode = false"
-                  :class="!quickSendIsChainMode ? 'bg-slate-500/50 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
-                  class="flex items-center px-3 py-1.5 rounded-md transition-colors text-sm font-light">
-                  <Icon name="fa:send" class="w-4 h-4" />
-                </button>
-                <button type="button" @click="handleQuickSendChainModeToggle"
-                  :class="quickSendIsChainMode ? 'bg-slate-500/50 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
-                  class="flex items-center space-x-2 px-3 py-1.5 rounded-md transition-colors text-sm font-light">
-                  <Icon name="mage:link" class="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            <!-- Single Message Mode -->
-            <div v-if="!quickSendIsChainMode" class="space-y-3">
-              <!-- Template Selection -->
-              <div>
-                <label class="block text-sm font-light text-slate-300 mb-1">Template (optional)</label>
-                <select v-model="quickSendSelectedTemplate" @change="applyQuickSendTemplate"
-                  class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm focus:border-emerald-400 focus:outline-none transition-colors [&>option]:bg-slate-700 [&>option]:text-slate-100">
-                  <option value="">None</option>
-                  <option v-for="template in activeTemplates" :key="template.id" :value="template.id">{{ template.name
-                    }}</option>
-                </select>
-              </div>
-
-              <!-- Subject (only for email) -->
-              <div v-if="quickSendMessage.platforms.includes('email')">
-                <label class="block text-sm font-light text-slate-300 mb-1">Subject *</label>
-                <input v-model="quickSendMessage.subject" type="text" required
-                  class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors"
-                  placeholder="Message subject">
-              </div>
-
-              <div>
-                <label class="block text-sm font-light text-slate-300 mb-1">Message *</label>
-                <textarea v-model="quickSendMessage.body" rows="5" required
-                  class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors resize-none"
-                  placeholder="Enter your message here..."></textarea>
-              </div>
-
-              <!-- Platform Selection -->
-              <PlatformMultiSelect v-model="quickSendMessage.platforms"
-                :available-platforms="quickSendAvailablePlatforms" label="Platforms"
-                label-class="block text-sm font-light text-slate-300 mb-1" />
-
-              <div v-if="quickSendMessage.schedule" class="space-y-3">
-                <div class="flex items-end gap-3">
-                  <div class="flex-1">
-                    <label class="block text-xs font-light text-slate-300 mb-1">Send Date</label>
-                    <input v-model="quickSendMessage.send_date" type="date"
-                      class="w-full bg-slate-600/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm focus:border-emerald-400 focus:outline-none transition-colors">
-                  </div>
-                  <div class="flex-1">
-                    <label class="block text-xs font-light text-slate-300 mb-1">Send Time</label>
-                    <input v-model="quickSendMessage.send_time" type="time"
-                      class="w-full bg-slate-600/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm focus:border-emerald-400 focus:outline-none transition-colors">
-                  </div>
-                  <div>
-                    <label class="block text-xs font-light text-slate-300 mb-1">Timezone</label>
-                    <div class="flex items-center bg-slate-600/50 rounded-lg p-1 border border-slate-500/30 w-fit">
-                      <button type="button" @click="quickSendMessage.timezone = 'my'"
-                        :class="quickSendMessage.timezone === 'my' ? 'bg-slate-500/50 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
-                        class="px-2 py-1.5 rounded-md transition-colors text-xs font-light">
-                        Mine
-                      </button>
-                      <button type="button" @click="quickSendMessage.timezone = 'user'"
-                        :class="quickSendMessage.timezone === 'user' ? 'bg-slate-500/50 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
-                        class="px-2 py-1.5 rounded-md transition-colors text-xs font-light">
-                        Contact
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Chain Mode -->
-            <div v-else class="space-y-4">
-              <!-- Global Chain Settings -->
-              <!-- Subject (only for email) -->
-              <div v-if="quickSendChainSettings.platforms.includes('email')">
-                <label class="block text-sm font-light text-slate-300 mb-1">Subject (applies to all messages) *</label>
-                <input v-model="quickSendChainSubject" type="text" required
-                  class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm focus:border-emerald-400 focus:outline-none transition-colors"
-                  placeholder="Message subject">
-              </div>
-
-              <div>
-                <label class="block text-sm font-light text-slate-300 mb-1">Footer/Signature (applies to all
-                  messages)</label>
-                <textarea v-model="quickSendChainFooter" rows="3"
-                  class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors resize-none"
-                  placeholder="Message footer"></textarea>
-              </div>
-
-              <!-- Platform Selection -->
-              <PlatformMultiSelect v-model="quickSendChainSettings.platforms"
-                :available-platforms="quickSendAvailablePlatforms" label="Platforms"
-                label-class="block text-sm font-light text-slate-300 mb-1" />
-
-              <!-- Chain Timing Settings -->
-              <div class="space-y-3">
-                <div>
-                  <label class="block text-sm font-light text-slate-300 mb-1">Timing Type</label>
-                  <div class="flex items-center bg-slate-700/50 rounded-lg p-1 border border-slate-500/30 w-fit">
-                    <button type="button" @click="quickSendChainSettings.timingType = 'interval'"
-                      :class="quickSendChainSettings.timingType === 'interval' ? 'bg-slate-500/50 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
-                      class="px-3 py-1.5 rounded-md transition-colors text-sm font-light">
-                      Interval
-                    </button>
-                    <button type="button" @click="quickSendChainSettings.timingType = 'specific'"
-                      :class="quickSendChainSettings.timingType === 'specific' ? 'bg-slate-500/50 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
-                      class="px-3 py-1.5 rounded-md transition-colors text-sm font-light">
-                      Specific
-                    </button>
-                  </div>
-                </div>
-
-                <div v-if="quickSendChainSettings.timingType === 'interval'" class="space-y-2">
-                  <div class="flex items-center space-x-2">
-                    <input type="checkbox" v-model="quickSendChainSettings.sendFirstImmediately"
-                      id="quick-send-first-immediately"
-                      class="w-4 h-4 rounded border-emerald-500/30 bg-slate-600/50 text-emerald-500 focus:ring-emerald-500 focus:ring-2">
-                    <label for="quick-send-first-immediately" class="text-xs text-slate-300 cursor-pointer">Send first
-                      message immediately</label>
-                  </div>
-
-                  <div class="space-y-2">
-                    <div class="flex items-end gap-2">
-                      <div class="flex-1">
-                        <label class="block text-xs font-light text-slate-300 mb-1">Start Date</label>
-                        <input v-model="quickSendChainSettings.startDate" type="date"
-                          class="w-full bg-slate-600/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm focus:border-emerald-400 focus:outline-none transition-colors">
-                      </div>
-                      <div class="flex-1">
-                        <label class="block text-xs font-light text-slate-300 mb-1">Start Time</label>
-                        <input v-model="quickSendChainSettings.startTime" type="time"
-                          class="w-full bg-slate-600/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm focus:border-emerald-400 focus:outline-none transition-colors">
-                      </div>
-                      <div>
-                        <label class="block text-xs font-light text-slate-300 mb-1">Timezone</label>
-                        <div class="flex items-center bg-slate-600/50 rounded-lg p-1 border border-slate-500/30 w-fit">
-                          <button type="button" @click="quickSendChainSettings.timezone = 'my'"
-                            :class="quickSendChainSettings.timezone === 'my' ? 'bg-slate-500/50 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
-                            class="px-2 py-1.5 rounded-md transition-colors text-xs font-light">
-                            Mine
-                          </button>
-                          <button type="button" @click="quickSendChainSettings.timezone = 'user'"
-                            :class="quickSendChainSettings.timezone === 'user' ? 'bg-slate-500/50 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
-                            class="px-2 py-1.5 rounded-md transition-colors text-xs font-light">
-                            Contact
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div v-for="(message, index) in quickSendMessageChain" :key="index"
-                class="bg-slate-600/30 rounded-lg p-4 border border-slate-500/20">
-                <div class="flex items-start justify-between mb-3">
-                  <h5 class="text-sm font-medium text-slate-200">Message {{ index + 1 }}</h5>
-                  <button type="button" @click="removeQuickSendMessageFromChain(index)"
-                    class="text-slate-400 hover:text-red-400 transition-colors">
-                    <Icon name="lucide:trash-2" class="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div class="space-y-3">
-                  <div>
-                    <label class="block text-xs font-light text-slate-300 mb-1">Message *</label>
-                    <textarea v-model="message.body" rows="4" required
-                      class="w-full bg-slate-600/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors resize-none"
-                      placeholder="Enter your message here..."></textarea>
-                  </div>
-
-                  <!-- Interval Mode -->
-                  <div v-if="quickSendChainSettings.timingType === 'interval' && index > 0">
-                    <label class="block text-xs font-light text-slate-300 mb-1">
-                      Days after previous message
-                    </label>
-                    <input v-model.number="message.frequency_days" type="number" min="0" step="1"
-                      class="w-full bg-slate-600/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm focus:border-emerald-400 focus:outline-none transition-colors"
-                      placeholder="0 = send immediately after previous">
-                  </div>
-
-                  <!-- Specific Date/Time Mode -->
-                  <div v-else-if="quickSendChainSettings.timingType === 'specific'" class="space-y-2">
-                    <div class="flex items-end gap-2">
-                      <div class="flex-1">
-                        <label class="block text-xs font-light text-slate-300 mb-1">Send Date</label>
-                        <input v-model="message.send_date" type="date"
-                          class="w-full bg-slate-600/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm focus:border-emerald-400 focus:outline-none transition-colors">
-                      </div>
-                      <div class="flex-1">
-                        <label class="block text-xs font-light text-slate-300 mb-1">Send Time</label>
-                        <input v-model="message.send_time" type="time"
-                          class="w-full bg-slate-600/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm focus:border-emerald-400 focus:outline-none transition-colors">
-                      </div>
-                      <div>
-                        <label class="block text-xs font-light text-slate-300 mb-1">Timezone</label>
-                        <div class="flex items-center bg-slate-600/50 rounded-lg p-1 border border-slate-500/30 w-fit">
-                          <button type="button" @click="message.timezone = 'my'"
-                            :class="message.timezone === 'my' ? 'bg-slate-500/50 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
-                            class="px-2 py-1.5 rounded-md transition-colors text-xs font-light">
-                            Mine
-                          </button>
-                          <button type="button" @click="message.timezone = 'user'"
-                            :class="message.timezone === 'user' ? 'bg-slate-500/50 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
-                            class="px-2 py-1.5 rounded-md transition-colors text-xs font-light">
-                            Contact
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <button type="button" @click="addQuickSendMessageToChain"
-                class="w-full py-2 border-2 border-dashed border-emerald-500/30 rounded-lg text-emerald-300 hover:border-emerald-500/50 hover:bg-emerald-500/10 transition-colors flex items-center justify-center">
-                <Icon name="lucide:plus" class="w-4 h-4 mr-2" />
-                Add Another Message
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="p-6 border-t border-slate-700/50 flex space-x-3">
-          <button type="button" @click="closeQuickSendModal"
-            class="flex-1 bg-slate-600/50 text-slate-300 px-4 py-2 rounded-lg text-sm font-light hover:bg-slate-600/70 transition-colors">
-            Cancel
-          </button>
-          <button @click="handleQuickSend"
-            class="flex-1 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white px-4 py-2 rounded-lg text-sm font-light hover:shadow-lg transition-all duration-300">
-            {{ quickSendMessage.schedule ? 'Schedule' : 'Send' }}
-          </button>
-          <button @click="quickSendMessage.schedule = !quickSendMessage.schedule"
-            class="px-3 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg text-sm font-light hover:shadow-lg transition-all duration-300">
-            <Icon name="material-symbols:schedule-send" class="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-    </div>
+    <QuickSendModal
+      :show="showQuickSendModal"
+      :contact="selectedContact"
+      :templates="activeTemplates"
+      :available-platforms="quickSendAvailablePlatforms"
+      :default-footer="settings?.user?.footer || ''"
+      @close="closeQuickSendModal"
+      @send="handleQuickSend"
+      @send-chain="handleQuickSendChain"
+    />
 
     <!-- Status Bar -->
-    <div v-if="showStatusBar"
-      class="fixed bottom-6 right-6 bg-slate-800/90 backdrop-blur-sm rounded-xl shadow-2xl border border-emerald-500/20 overflow-hidden transition-all duration-300 z-[60]">
-      <div class="px-6 py-3 text-sm text-slate-300 font-light">
-        <div class="flex items-center space-x-3">
-          <div class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
-          <span>{{ statusMessage }}</span>
-        </div>
-      </div>
-      <!-- Progress Bar -->
-      <div class="h-1 bg-slate-700/50">
-        <div class="h-full bg-gradient-to-r from-emerald-500 to-cyan-500 transition-all duration-100 ease-linear"
-          :style="{ width: statusProgress + '%' }"></div>
-      </div>
-    </div>
+    <StatusBar :show="showStatusBar" :message="statusMessage" :progress="statusProgress" />
 
     <!-- Bulk Edit Modal -->
-    <div v-if="showBulkEditModal"
-      class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div
-        class="bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-2xl border border-emerald-500/20 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
-        <!-- Header -->
-        <div class="flex justify-between items-center p-6 border-b border-slate-700/50 flex-shrink-0">
-          <h3 class="text-2xl font-thin text-slate-100">Bulk Edit ({{ selectedContactIds.size }} contacts)</h3>
-          <button @click="closeBulkEditModal" class="text-slate-400 hover:text-slate-200 transition-colors">
-            <Icon name="lucide:x" class="w-6 h-6" />
-          </button>
-        </div>
-
-        <!-- Scrollable Content -->
-        <div class="flex-1 overflow-y-auto p-6">
-          <div class="space-y-4">
-            <p class="text-sm text-slate-400 mb-4">Edit fields for all selected contacts. Leave fields empty to keep existing values.</p>
-
-            <!-- Platform Preference -->
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-2">Platform Preference</label>
-              <div class="flex gap-4">
-                <label class="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" v-model="bulkEditData.platform_preference" value="email"
-                    class="w-4 h-4 rounded border cursor-pointer focus:ring-2 focus:ring-emerald-500" />
-                  <span class="text-slate-300 text-sm">Email</span>
-                </label>
-                <label class="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" v-model="bulkEditData.platform_preference" value="codementor"
-                    class="w-4 h-4 rounded border cursor-pointer focus:ring-2 focus:ring-emerald-500" />
-                  <span class="text-slate-300 text-sm">Codementor</span>
-                </label>
-              </div>
-              <p class="text-xs text-slate-500 mt-1">Leave unchecked to keep existing preferences</p>
-            </div>
-
-            <!-- Timezone -->
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-1">Timezone</label>
-              <select v-model="bulkEditData.timezone"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm focus:border-emerald-400 focus:outline-none transition-colors [&>option]:bg-slate-700 [&>option]:text-slate-100">
-                <option value="">Keep existing</option>
-                <option value="UTC">UTC</option>
-                <option value="America/New_York">Eastern Time (ET)</option>
-                <option value="America/Chicago">Central Time (CT)</option>
-                <option value="America/Denver">Mountain Time (MT)</option>
-                <option value="America/Los_Angeles">Pacific Time (PT)</option>
-                <option value="Europe/London">London (GMT)</option>
-                <option value="Europe/Paris">Paris (CET)</option>
-                <option value="Asia/Tokyo">Tokyo (JST)</option>
-                <option value="Asia/Shanghai">Shanghai (CST)</option>
-                <option value="Australia/Sydney">Sydney (AEST)</option>
-              </select>
-            </div>
-
-            <!-- Status -->
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-1">Status</label>
-              <select v-model="bulkEditData.is_active"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm focus:border-emerald-400 focus:outline-none transition-colors [&>option]:bg-slate-700 [&>option]:text-slate-100">
-                <option :value="null">Keep existing</option>
-                <option :value="true">Active</option>
-                <option :value="false">Inactive</option>
-              </select>
-            </div>
-
-            <!-- Source -->
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-1">Source</label>
-              <input v-model="bulkEditData.source" type="text"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors"
-                placeholder="Leave empty to keep existing">
-            </div>
-
-            <!-- Favorite -->
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-1">Favorite</label>
-              <select v-model="bulkEditData.is_favorite"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm focus:border-emerald-400 focus:outline-none transition-colors [&>option]:bg-slate-700 [&>option]:text-slate-100">
-                <option :value="null">Keep existing</option>
-                <option :value="true">Mark as favorite</option>
-                <option :value="false">Remove favorite</option>
-              </select>
-            </div>
-
-            <!-- Gender -->
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-1">Gender</label>
-              <div class="flex items-center bg-slate-700/50 rounded-lg p-1 border border-slate-500/30 w-fit">
-                <button type="button" @click="bulkEditData.gender = ''"
-                  :class="bulkEditData.gender === '' ? 'bg-slate-500/50 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
-                  class="px-3 py-1.5 rounded-md transition-colors text-xs font-light">
-                  Not specified
-                </button>
-                <button type="button" @click="bulkEditData.gender = 'male'"
-                  :class="bulkEditData.gender === 'male' ? 'bg-slate-500/50 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
-                  class="px-3 py-1.5 rounded-md transition-colors text-xs font-light">
-                  Male
-                </button>
-                <button type="button" @click="bulkEditData.gender = 'female'"
-                  :class="bulkEditData.gender === 'female' ? 'bg-slate-500/50 text-slate-100' : 'text-slate-400 hover:text-slate-200'"
-                  class="px-3 py-1.5 rounded-md transition-colors text-xs font-light">
-                  Female
-                </button>
-              </div>
-              <p class="text-xs text-slate-500 mt-1">Click "Not specified" to keep existing</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Footer -->
-        <div class="flex space-x-3 p-6 border-t border-slate-700/50 flex-shrink-0">
-          <button @click="closeBulkEditModal"
-            class="flex-1 bg-slate-600/50 text-slate-300 px-4 py-3 rounded-xl font-light hover:bg-slate-600/70 transition-colors">
-            Cancel
-          </button>
-          <button @click="handleBulkEdit"
-            class="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-3 rounded-xl font-light hover:shadow-lg transition-all duration-300">
-            Update {{ selectedContactIds.size }} Contact{{ selectedContactIds.size !== 1 ? 's' : '' }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <BulkEditModal
+      :show="showBulkEditModal"
+      :contact-count="selectedContactIds.size"
+      :data="bulkEditData"
+      @close="closeBulkEditModal"
+      @save="handleBulkEdit"
+    />
 
     <!-- Bulk Message Modal -->
-    <div v-if="showBulkMessageModal"
-      class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div
-        class="bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-2xl border border-emerald-500/20 w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden">
-        <!-- Header -->
-        <div class="flex justify-between items-center p-6 border-b border-slate-700/50 flex-shrink-0">
-          <h3 class="text-2xl font-thin text-slate-100">Bulk Message ({{ selectedContactIds.size }} contacts)</h3>
-          <button @click="closeBulkMessageModal" class="text-slate-400 hover:text-slate-200 transition-colors">
-            <Icon name="lucide:x" class="w-6 h-6" />
-          </button>
-        </div>
-
-        <!-- Scrollable Content -->
-        <div class="flex-1 flex gap-6 overflow-y-auto p-6 min-h-0">
-          <!-- Left: Message Composition -->
-          <div class="flex-1 space-y-4">
-            <div>
-              <label class="block text-sm font-light text-slate-300 mb-2">
-                Platforms *
-                <span class="text-xs text-slate-500 ml-2">(Available for selected contacts)</span>
-              </label>
-              <div class="space-y-3">
-                <label class="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" v-model="bulkMessage.usePreferredPlatforms"
-                    class="w-4 h-4 rounded border cursor-pointer focus:ring-2 focus:ring-emerald-500" />
-                  <span class="text-slate-300 text-sm">Use each contact's preferred platforms</span>
-                </label>
-                <div v-if="!bulkMessage.usePreferredPlatforms" class="flex gap-4">
-                  <label class="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" v-model="bulkMessage.platforms" value="email"
-                      class="w-4 h-4 rounded border cursor-pointer focus:ring-2 focus:ring-emerald-500" />
-                    <span class="text-slate-300 text-sm">Email</span>
-                  </label>
-                  <label class="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" v-model="bulkMessage.platforms" value="codementor"
-                      class="w-4 h-4 rounded border cursor-pointer focus:ring-2 focus:ring-emerald-500" />
-                    <span class="text-slate-300 text-sm">Codementor</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label class="block text-xs font-light text-slate-300 mb-1">Template (optional)</label>
-              <select v-model="bulkSelectedTemplate" @change="applyBulkTemplate"
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors [&>option]:bg-slate-700 [&>option]:text-slate-100">
-                <option value="">None</option>
-                <option v-for="template in activeTemplates" :key="template.id" :value="template.id">{{ template.name }}
-                </option>
-              </select>
-            </div>
-
-            <div v-if="bulkMessage.usePreferredPlatforms || bulkMessage.platforms.includes('email')">
-              <label class="block text-xs font-light text-slate-300 mb-1">
-                Subject *
-                <span class="text-xs text-slate-500 ml-2">Variables: {name}, {first_name}, {preferred_name},
-                  {last_name}, {email}, {gender}. Conditionals: {if_male:text}{if_female:text}</span>
-              </label>
-              <input v-model="bulkMessage.subject" type="text" required
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors"
-                placeholder="Hello {first_name}!" />
-            </div>
-
-            <div>
-              <label class="block text-xs font-light text-slate-300 mb-1">
-                Message Body *
-                <span class="text-xs text-slate-500 ml-2">Variables: {name}, {first_name}, {preferred_name},
-                  {last_name}, {email}, {codementor_username}, {gender}. Conditionals:
-                  {if_male:text}{if_female:text}</span>
-              </label>
-              <textarea v-model="bulkMessage.body" rows="8" required
-                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors resize-none"
-                placeholder="Hi {first_name}, ..."></textarea>
-            </div>
-          </div>
-
-          <!-- Right: Preview Section -->
-          <div class="w-96 border-l border-slate-700/50 pl-6 flex-shrink-0">
-            <h4 class="text-lg font-light text-slate-100 mb-4">Preview</h4>
-
-            <!-- Message Preview -->
-            <div class="bg-slate-700/30 rounded-lg p-4 border border-slate-600/30 mb-4">
-              <div v-if="bulkMessage.subject" class="text-xs text-slate-400 mb-2">
-                <strong>Subject:</strong> {{ getPreviewText(bulkMessage.subject, {
-                  name: 'John Doe', preferred_name:
-                    'Johnny', first_name: 'Johnny', last_name: 'Doe', gender: 'male', email: 'john.doe@example.com',
-                codementor_username: 'johndoe' }) }}
-              </div>
-              <div v-if="bulkMessage.body.trim()" class="text-sm text-slate-300 whitespace-pre-wrap">
-                {{ getPreviewText(bulkMessage.body, {
-                  name: 'John Doe', preferred_name: 'Johnny', first_name: 'Johnny',
-                  last_name: 'Doe', gender: 'male', email: 'john.doe@example.com', codementor_username: 'johndoe' }) }}
-              </div>
-              <div v-else class="text-sm text-slate-500 italic">
-                (No message body yet)
-              </div>
-            </div>
-
-            <!-- User Data Section -->
-            <div class="bg-slate-800/30 border border-emerald-500/20 rounded-xl p-3">
-              <h5 class="text-sm font-light text-emerald-400 mb-2">Preview Data</h5>
-              <div class="text-xs text-slate-300 space-y-1">
-                <div><strong>Name:</strong> John Doe</div>
-                <div><strong>Preferred Name:</strong> Johnny</div>
-                <div><strong>Gender:</strong> Male</div>
-                <div><strong>Email:</strong> john.doe@example.com</div>
-                <div><strong>Codementor:</strong> johndoe</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Footer -->
-        <div class="flex space-x-3 p-6 border-t border-slate-700/50 flex-shrink-0">
-          <button @click="handleBulkSend" :disabled="!canSendBulkMessage"
-            class="flex-1 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white px-4 py-3 rounded-xl font-light hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
-            Send to {{ selectedContactIds.size }} Contact{{ selectedContactIds.size !== 1 ? 's' : '' }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <BulkMessageModal
+      :show="showBulkMessageModal"
+      :contact-count="selectedContactIds.size"
+      :message="bulkMessage"
+      :templates="activeTemplates"
+      @close="closeBulkMessageModal"
+      @send="handleBulkSend"
+      @template-change="applyBulkTemplate"
+    />
 
     <!-- Contact Profile Modal -->
     <ContactProfile v-if="showContactProfileModal && selectedContact" :contact="selectedContact"
@@ -945,8 +244,9 @@
 
     <!-- Import Modal -->
     <div v-if="showImportModal"
-      class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div class="bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-2xl border border-emerald-500/20 w-full max-w-md">
+      class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-0 sm:p-4">
+      <div
+        class="bg-slate-800/90 backdrop-blur-sm rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border border-emerald-500/20 w-full h-full sm:h-auto sm:max-w-md flex flex-col">
         <div class="p-6 border-b border-slate-700/50 flex justify-between items-center">
           <h3 class="text-2xl font-thin text-slate-100">Import Contacts</h3>
           <button @click="showImportModal = false" class="text-slate-400 hover:text-slate-200 transition-colors">
@@ -995,7 +295,6 @@
         </div>
       </div>
     </div>
-  </div>
   </div>
 </template>
 
@@ -1053,7 +352,7 @@ const bulkEditData = ref({
 })
 
 // Filter visibility
-const showFilters = ref(true)
+const showFilters = ref(false)
 
 // Filters
 const filterSearch = ref('')
@@ -1062,6 +361,34 @@ const filterStatus = ref('')
 const filterSource = ref([])
 const filterFavorite = ref('')
 const filterLastMessaged = ref('')
+
+const filterData = computed({
+  get: () => ({
+    search: filterSearch.value,
+    platform: filterPlatform.value,
+    status: filterStatus.value,
+    source: filterSource.value,
+    favorite: filterFavorite.value,
+    lastMessaged: filterLastMessaged.value
+  }),
+  set: (value) => {
+    filterSearch.value = value.search
+    filterPlatform.value = value.platform
+    filterStatus.value = value.status
+    filterSource.value = value.source
+    filterFavorite.value = value.favorite
+    filterLastMessaged.value = value.lastMessaged
+  }
+})
+
+const updateFilters = (newFilters) => {
+  filterSearch.value = newFilters.search
+  filterPlatform.value = newFilters.platform
+  filterStatus.value = newFilters.status
+  filterSource.value = newFilters.source
+  filterFavorite.value = newFilters.favorite
+  filterLastMessaged.value = newFilters.lastMessaged
+}
 
 // Form data
 const newContact = ref({
@@ -1124,9 +451,9 @@ const applyQuickSendTemplate = () => {
   }
 }
 
-const applyBulkTemplate = () => {
-  if (!bulkSelectedTemplate.value) return
-  const template = templates.value.find(t => t.id === parseInt(bulkSelectedTemplate.value))
+const applyBulkTemplate = (templateId) => {
+  if (!templateId) return
+  const template = templates.value.find(t => t.id === parseInt(templateId))
   if (template) {
     if (template.subject) {
       bulkMessage.value.subject = template.subject
@@ -1187,15 +514,15 @@ const handleDeleteContact = async (contactId) => {
   }
 }
 
-const handleSaveContact = async () => {
+const handleSaveContact = async (contactData) => {
   // Store the contact data before clearing the form
-  const contactData = { ...newContact.value }
+  const data = contactData || { ...newContact.value }
 
   // Instant UI update
   const tempId = Date.now() // Temporary ID
   const newContactData = {
     id: tempId,
-    ...contactData,
+    ...data,
     is_active: true,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
@@ -1207,7 +534,7 @@ const handleSaveContact = async () => {
 
   // Background API call
   try {
-    const result = await createContact(contactData)
+    const result = await createContact(data)
     // Update with real ID
     const index = contacts.value.findIndex(c => c.id === tempId)
     if (index !== -1) {
@@ -1222,9 +549,9 @@ const handleSaveContact = async () => {
   }
 }
 
-const handleUpdateContact = async () => {
+const handleUpdateContact = async (contactData) => {
   // Store the contact data before clearing the form
-  const contactData = { ...newContact.value }
+  const data = contactData || { ...newContact.value }
   const contactId = editingContact.value.id
 
   // Instant UI update
@@ -1232,7 +559,7 @@ const handleUpdateContact = async () => {
   if (index !== -1) {
     contacts.value[index] = {
       ...contacts.value[index],
-      ...contactData,
+      ...data,
       updated_at: new Date().toISOString()
     }
   }
@@ -1243,7 +570,7 @@ const handleUpdateContact = async () => {
 
   // Background API call
   try {
-    await updateContact(contactId, contactData)
+    await updateContact(contactId, data)
     showStatusWithProgressLocal('Contact updated successfully', 5000)
   } catch (error) {
     console.error('Error updating contact:', error)
@@ -1367,29 +694,30 @@ const closeQuickSendModal = () => {
   loadQuickSendMessageChain()
 }
 
-const handleQuickSend = async () => {
-  if (!quickSendMessage.value.body.trim()) {
+const handleQuickSend = async (messageData) => {
+  const msg = messageData || quickSendMessage.value
+  if (!msg.body.trim()) {
     alert('Please fill in the message body')
     return
   }
 
-  if (!quickSendMessage.value.platforms || quickSendMessage.value.platforms.length === 0) {
+  if (!msg.platforms || msg.platforms.length === 0) {
     alert('Please select at least one platform')
     return
   }
 
-  if (quickSendMessage.value.platforms.includes('email') && !quickSendMessage.value.subject.trim()) {
+  if (msg.platforms.includes('email') && !msg.subject.trim()) {
     alert('Subject is required for email messages')
     return
   }
 
   try {
     // If sending now (not scheduled), send immediately
-    if (!quickSendMessage.value.schedule) {
+    if (!msg.schedule) {
       await sendMessage(selectedContact.value.id, {
-        platforms: quickSendMessage.value.platforms,
-        subject: quickSendMessage.value.subject || '',
-        body: quickSendMessage.value.body
+        platforms: msg.platforms,
+        subject: msg.subject || '',
+        body: msg.body
       })
 
       showStatusWithProgressLocal('Message sent successfully!', 5000)
@@ -1397,7 +725,7 @@ const handleQuickSend = async () => {
     } else {
       // If scheduled, create a Message object via API
       const userTimezoneValue = settings.value?.user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
-      const timezoneToUse = quickSendMessage.value.timezone === 'my'
+      const timezoneToUse = msg.timezone === 'my'
         ? userTimezoneValue
         : (selectedContact.value.timezone || 'UTC')
 
@@ -1405,12 +733,12 @@ const handleQuickSend = async () => {
         method: 'POST',
         body: JSON.stringify({
           contact: selectedContact.value.id,
-          subject: quickSendMessage.value.subject || '',
-          body: quickSendMessage.value.body,
-          platforms: quickSendMessage.value.platforms,
+          subject: msg.subject || '',
+          body: msg.body,
+          platforms: msg.platforms,
           status: 'pending',
-          send_date: quickSendMessage.value.send_date || null,
-          send_time: quickSendMessage.value.send_time || getCurrentTime(),
+          send_date: msg.send_date || null,
+          send_time: msg.send_time || getCurrentTime(),
           timezone: timezoneToUse,
           frequency_days: 0
         })
@@ -1425,37 +753,44 @@ const handleQuickSend = async () => {
   }
 }
 
-const handleQuickSendChain = async () => {
+const handleQuickSendChain = async (chainData) => {
+  const data = chainData || {
+    subject: quickSendChainSubject.value,
+    footer: quickSendChainFooter.value,
+    settings: quickSendChainSettings.value,
+    messages: quickSendMessageChain.value
+  }
+
   // Validate platforms
-  if (!quickSendChainSettings.value.platforms || quickSendChainSettings.value.platforms.length === 0) {
+  if (!data.settings.platforms || data.settings.platforms.length === 0) {
     alert('Please select at least one platform')
     return
   }
 
   // Validate subject if email is selected
-  if (quickSendChainSettings.value.platforms.includes('email') && !quickSendChainSubject.value.trim()) {
+  if (data.settings.platforms.includes('email') && !data.subject.trim()) {
     alert('Subject is required when email is selected')
     return
   }
 
   // Validate that all messages have body
-  if (quickSendMessageChain.value.some(msg => !msg.body.trim())) {
+  if (data.messages.some(msg => !msg.body.trim())) {
     alert('Please fill in the message body for all messages')
     return
   }
 
   // Validate specific date/time mode
-  if (quickSendChainSettings.value.timingType === 'specific') {
-    if (quickSendMessageChain.value.some(msg => !msg.send_date || !msg.send_time)) {
+  if (data.settings.timingType === 'specific') {
+    if (data.messages.some(msg => !msg.send_date || !msg.send_time)) {
       alert('Please fill in send date and time for all messages in specific mode')
       return
     }
   }
 
   // Validate interval mode
-  if (quickSendChainSettings.value.timingType === 'interval') {
-    if (!quickSendChainSettings.value.startDate || !quickSendChainSettings.value.startTime) {
-      if (!quickSendChainSettings.value.sendFirstImmediately) {
+  if (data.settings.timingType === 'interval') {
+    if (!data.settings.startDate || !data.settings.startTime) {
+      if (!data.settings.sendFirstImmediately) {
         alert('Please set a start date and time for interval chains')
         return
       }
@@ -1466,8 +801,8 @@ const handleQuickSendChain = async () => {
     const userTimezoneValue = settings.value?.user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 
     // Determine chain timezone for interval mode
-    const chainTimezoneToUse = quickSendChainSettings.value.timingType === 'interval'
-      ? (quickSendChainSettings.value.timezone === 'my'
+    const chainTimezoneToUse = data.settings.timingType === 'interval'
+      ? (data.settings.timezone === 'my'
         ? userTimezoneValue
         : (selectedContact.value.timezone || 'UTC'))
       : null
@@ -1475,16 +810,16 @@ const handleQuickSendChain = async () => {
     // Determine chain start date/time for interval mode
     let chainStartDate = null
     let chainStartTime = null
-    if (quickSendChainSettings.value.timingType === 'interval') {
-      if (quickSendChainSettings.value.startDate && quickSendChainSettings.value.startTime) {
-        chainStartDate = quickSendChainSettings.value.startDate
-        chainStartTime = quickSendChainSettings.value.startTime
-      } else if (quickSendChainSettings.value.sendFirstImmediately) {
+    if (data.settings.timingType === 'interval') {
+      if (data.settings.startDate && data.settings.startTime) {
+        chainStartDate = data.settings.startDate
+        chainStartTime = data.settings.startTime
+      } else if (data.settings.sendFirstImmediately) {
         chainStartDate = new Date().toISOString().split('T')[0]
         chainStartTime = new Date().toTimeString().slice(0, 5)
       } else {
-        chainStartDate = quickSendChainSettings.value.startDate || new Date().toISOString().split('T')[0]
-        chainStartTime = quickSendChainSettings.value.startTime || '09:00'
+        chainStartDate = data.settings.startDate || new Date().toISOString().split('T')[0]
+        chainStartTime = data.settings.startTime || '09:00'
       }
     }
 
@@ -1493,7 +828,7 @@ const handleQuickSendChain = async () => {
       method: 'POST',
       body: JSON.stringify({
         contact: selectedContact.value.id,
-        timing_type: quickSendChainSettings.value.timingType,
+        timing_type: data.settings.timingType,
         chain_start_date: chainStartDate,
         chain_start_time: chainStartTime,
         chain_timezone: chainTimezoneToUse
@@ -1501,11 +836,11 @@ const handleQuickSendChain = async () => {
     })
 
     // Create Message objects for each message in the chain
-    const messagePromises = quickSendMessageChain.value.map(async (msg, index) => {
+    const messagePromises = data.messages.map(async (msg, index) => {
       // Combine body and footer
       let messageBody = msg.body || ''
-      if (quickSendChainFooter.value && quickSendChainFooter.value.trim()) {
-        messageBody += '\n\n' + quickSendChainFooter.value.trim()
+      if (data.footer && data.footer.trim()) {
+        messageBody += '\n\n' + data.footer.trim()
       }
 
       // Determine timezone to use
@@ -1517,13 +852,13 @@ const handleQuickSendChain = async () => {
         contact: selectedContact.value.id,
         sequence: sequence.id,
         order: index,
-        subject: quickSendChainSettings.value.platforms.includes('email') ? quickSendChainSubject.value : '',
+        subject: data.settings.platforms.includes('email') ? data.subject : '',
         body: messageBody,
-        platforms: quickSendChainSettings.value.platforms,
+        platforms: data.settings.platforms,
         status: 'pending'
       }
 
-      if (quickSendChainSettings.value.timingType === 'interval') {
+      if (data.settings.timingType === 'interval') {
         messageData.frequency_days = msg.frequency_days || (index === 0 ? 0 : 1)
       } else {
         // Specific mode
@@ -1539,7 +874,7 @@ const handleQuickSendChain = async () => {
       })
 
       // If this is the first message and sendFirstImmediately is true, send it now
-      if (index === 0 && quickSendChainSettings.value.timingType === 'interval' && quickSendChainSettings.value.sendFirstImmediately) {
+      if (index === 0 && data.settings.timingType === 'interval' && data.settings.sendFirstImmediately) {
         try {
           const sendResult = await apiCall(`/messages/${createdMessage.id}/send-now/`, {
             method: 'POST'
@@ -1728,10 +1063,10 @@ const filteredContacts = computed(() => {
       if (!contact.last_messaged) {
         return filterLastMessaged.value === 'never'
       }
-      
+
       const lastMessagedDate = new Date(contact.last_messaged)
       const daysSince = Math.floor((now - lastMessagedDate) / (1000 * 60 * 60 * 24))
-      
+
       switch (filterLastMessaged.value) {
         case 'never':
           return false // Already handled above
@@ -1892,7 +1227,7 @@ const closeBulkEditModal = () => {
   }
 }
 
-const handleBulkEdit = async () => {
+const handleBulkEdit = async (editData) => {
   if (selectedContactIds.value.size === 0) return
 
   // Prepare update data - only include fields that have values
@@ -1901,23 +1236,23 @@ const handleBulkEdit = async () => {
   }
 
   // Only include fields that are set
-  if (bulkEditData.value.platform_preference.length > 0) {
-    updateData.platform_preference = bulkEditData.value.platform_preference
+  if (editData.platform_preference.length > 0) {
+    updateData.platform_preference = editData.platform_preference
   }
-  if (bulkEditData.value.timezone) {
-    updateData.timezone = bulkEditData.value.timezone
+  if (editData.timezone) {
+    updateData.timezone = editData.timezone
   }
-  if (bulkEditData.value.is_active !== null) {
-    updateData.is_active = bulkEditData.value.is_active
+  if (editData.is_active !== null) {
+    updateData.is_active = editData.is_active
   }
-  if (bulkEditData.value.source) {
-    updateData.source = bulkEditData.value.source
+  if (editData.source) {
+    updateData.source = editData.source
   }
-  if (bulkEditData.value.is_favorite !== null) {
-    updateData.is_favorite = bulkEditData.value.is_favorite
+  if (editData.is_favorite !== null) {
+    updateData.is_favorite = editData.is_favorite
   }
-  if (bulkEditData.value.gender !== '') {
-    updateData.gender = bulkEditData.value.gender
+  if (editData.gender !== '') {
+    updateData.gender = editData.gender
   }
 
   // Remove contact_ids if no other fields to update
@@ -1928,14 +1263,14 @@ const handleBulkEdit = async () => {
 
   try {
     showStatusWithProgressLocal(`Updating ${selectedContactIds.value.size} contacts...`, 5000)
-    
+
     const result = await apiCall('/contacts/bulk-update/', {
       method: 'POST',
       body: JSON.stringify(updateData)
     })
 
     showStatusWithProgressLocal(`Successfully updated ${result.updated_count} contact(s)`, 5000)
-    
+
     // Reload contacts and clear selection
     await loadContacts()
     selectedContactIds.value.clear()
@@ -1955,7 +1290,7 @@ const handleBulkDelete = async () => {
 
   try {
     showStatusWithProgressLocal(`Deleting ${selectedContactIds.value.size} contacts...`, 5000)
-    
+
     const result = await apiCall('/contacts/bulk-delete/', {
       method: 'POST',
       body: JSON.stringify({
@@ -1964,12 +1299,12 @@ const handleBulkDelete = async () => {
     })
 
     showStatusWithProgressLocal(`Successfully deleted ${result.deleted_count} contact(s)`, 5000)
-    
+
     // Remove deleted contacts from local state immediately
     const deletedIds = new Set(selectedContactIds.value)
     contacts.value = contacts.value.filter(c => !deletedIds.has(c.id))
     selectedContactIds.value.clear()
-    
+
     // Reload to ensure sync
     await loadContacts()
   } catch (error) {
@@ -1980,9 +1315,7 @@ const handleBulkDelete = async () => {
   }
 }
 
-const handleBulkSend = async () => {
-  if (!canSendBulkMessage.value) return
-
+const handleBulkSend = async (messageData) => {
   if (!confirm(`Send this message to ${selectedContactIds.value.size} contact(s)?`)) {
     return
   }
@@ -1990,16 +1323,11 @@ const handleBulkSend = async () => {
   try {
     // Prepare message body with template variables (use first contact for preview)
     // The backend will handle per-contact template replacement
-    const firstContact = selectedContacts.value[0]
-    let body = bulkMessage.value.body
-    let subject = bulkMessage.value.subject || ''
-    
-    // If using preferred platforms, we need to handle template replacement per contact
-    // For now, send the template as-is and let backend handle it
-    // Actually, we need to send the raw template and let backend do per-contact replacement
-    
+    let body = messageData.body
+    let subject = messageData.subject || ''
+
     // Append footer if email is being used
-    if (bulkMessage.value.platforms.includes('email') || bulkMessage.value.usePreferredPlatforms) {
+    if (messageData.platforms.includes('email') || messageData.usePreferredPlatforms) {
       let footerToUse = ''
       if (bulkSelectedTemplate.value) {
         const template = templates.value.find(t => t.id === parseInt(bulkSelectedTemplate.value))
@@ -2020,10 +1348,10 @@ const handleBulkSend = async () => {
       method: 'POST',
       body: JSON.stringify({
         contact_ids: Array.from(selectedContactIds.value),
-        platforms: bulkMessage.value.platforms,
+        platforms: messageData.platforms,
         subject: subject,
         body: body,
-        use_preferred_platforms: bulkMessage.value.usePreferredPlatforms
+        use_preferred_platforms: messageData.usePreferredPlatforms
       })
     })
 
@@ -2035,7 +1363,7 @@ const handleBulkSend = async () => {
     // Close modal and clear selection immediately
     showBulkMessageModal.value = false
     selectedContactIds.value.clear()
-    
+
     // Reload contacts after a short delay to see updates
     setTimeout(async () => {
       await loadContacts()

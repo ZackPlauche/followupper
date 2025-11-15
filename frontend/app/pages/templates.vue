@@ -33,255 +33,37 @@
     </div>
 
     <!-- Template Form Modal -->
-    <div v-if="showTemplateForm"
-      class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div class="flex gap-6 w-full max-w-6xl max-h-[90vh] overflow-hidden">
-        <!-- Form Panel -->
-        <div
-          class="bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-2xl border border-emerald-500/20 flex-1 flex flex-col overflow-hidden">
-          <!-- Header -->
-          <div class="p-6 border-b border-slate-700/50 flex-shrink-0 flex justify-between items-center">
-            <h3 class="text-2xl font-thin text-slate-100">Add Template</h3>
-            <button @click="showTemplateForm = false" class="text-slate-400 hover:text-slate-200 transition-colors">
-              <Icon name="lucide:x" class="w-6 h-6" />
-            </button>
-          </div>
-
-          <!-- Scrollable Content -->
-          <div class="flex-1 overflow-y-auto p-6 min-h-0">
-            <form @submit.prevent="handleSaveTemplate" class="space-y-4">
-              <div>
-                <label class="block text-sm font-light text-slate-300 mb-2">Template Name *</label>
-                <input v-model="newTemplate.name" type="text" required
-                  class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors">
-              </div>
-
-              <div>
-                <label class="block text-sm font-light text-slate-300 mb-2">
-                  Subject
-                  <span class="text-xs text-slate-500 ml-2">Variables: {name}, {first_name}, {preferred_name},
-                    {last_name}, {email}, {gender}. Conditionals: {if_male:text}{if_female:text}</span>
-                </label>
-                <input v-model="newTemplate.subject" type="text"
-                  class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors"
-                  placeholder="Hi {first_name}! 👋">
-              </div>
-
-              <div>
-                <label class="block text-sm font-light text-slate-300 mb-2">
-                  Message Body *
-                  <span class="text-xs text-slate-500 ml-2">Variables: {name}, {first_name}, {preferred_name},
-                    {last_name}, {email}, {codementor_username}, {gender}. Conditionals:
-                    {if_male:text}{if_female:text}</span>
-                </label>
-                <textarea v-model="newTemplate.body" rows="8" required
-                  class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors resize-none"
-                  placeholder="Hi {first_name}! 👋&#10;&#10;Thanks for your interest! 💼&#10;&#10;Your email: {email} 📧&#10;Notes: {notes}&#10;&#10;Best regards! ✨&#10;Your Team 🚀"></textarea>
-              </div>
-
-              <div>
-                <label class="block text-sm font-light text-slate-300 mb-2">
-                  Footer/Signature (Email only)
-                  <span class="text-xs text-slate-500 ml-2">Variables: {name}, {first_name}, {preferred_name},
-                    {last_name}, {email}, {gender}. Conditionals: {if_male:text}{if_female:text}</span>
-                </label>
-                <textarea v-model="newTemplate.footer" rows="3"
-                  class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors resize-none"
-                  placeholder="Best regards,&#10;Your Name"></textarea>
-              </div>
-
-              <div class="flex items-center space-x-4">
-                <label class="flex items-center space-x-2">
-                  <input v-model="newTemplate.is_active" type="checkbox"
-                    class="w-4 h-4 text-emerald-500 bg-slate-700/50 border-emerald-500/30 rounded focus:ring-emerald-400">
-                  <span class="text-sm font-light text-slate-300">Active</span>
-                </label>
-              </div>
-
-              <div class="flex space-x-3 pt-4">
-                <button type="button" @click="showTemplateForm = false"
-                  class="flex-1 bg-slate-600/50 text-slate-300 px-4 py-3 rounded-xl font-light hover:bg-slate-600/70 transition-colors">
-                  Cancel
-                </button>
-                <button type="submit"
-                  class="flex-1 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white px-4 py-3 rounded-xl font-light hover:shadow-lg transition-all duration-300">
-                  Save Template
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-
-        <!-- Preview Card -->
-        <div
-          class="bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-2xl border border-emerald-500/20 w-96 flex flex-col overflow-hidden flex-shrink-0">
-          <div class="p-6 border-b border-slate-700/50 flex-shrink-0">
-            <h4 class="text-lg font-thin text-slate-100">Live Preview</h4>
-          </div>
-          <div class="flex-1 overflow-y-auto p-6 min-h-0">
-            <!-- Subject Preview -->
-            <div class="mb-4">
-              <label class="block text-sm font-light text-emerald-400 mb-2">Subject</label>
-              <div class="bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100">
-                {{ previewTemplateSubject }}
-              </div>
-            </div>
-
-            <!-- Body Preview -->
-            <div class="mb-4">
-              <label class="block text-sm font-light text-emerald-400 mb-2">Message Body</label>
-              <div
-                class="bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 min-h-[200px] whitespace-pre-wrap">
-                {{ previewTemplateBody }}
-              </div>
-            </div>
-
-            <!-- Sample Contact Info -->
-            <div class="bg-slate-800/30 border border-emerald-500/20 rounded-xl p-3">
-              <h5 class="text-sm font-light text-emerald-400 mb-2">Preview Data</h5>
-              <div class="text-xs text-slate-300 space-y-1">
-                <div><strong>Name:</strong> John Doe</div>
-                <div><strong>Email:</strong> john@example.com</div>
-                <div><strong>Notes:</strong> Great client! Very responsive 📧</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <TemplateFormModal
+      :show="showTemplateForm"
+      :template="newTemplate"
+      :is-edit="false"
+      @close="showTemplateForm = false"
+      @save="handleSaveTemplate"
+    />
 
     <!-- Edit Template Form Modal -->
-    <div v-if="showEditTemplateForm"
-      class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-      <div class="flex gap-6 w-full max-w-6xl max-h-[90vh] overflow-hidden">
-        <!-- Form Panel -->
-        <div
-          class="bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-2xl border border-emerald-500/20 flex-1 flex flex-col overflow-hidden">
-          <!-- Header -->
-          <div class="p-6 border-b border-slate-700/50 flex-shrink-0 flex justify-between items-center">
-            <h3 class="text-2xl font-thin text-slate-100">Edit Template</h3>
-            <button @click="showEditTemplateForm = false" class="text-slate-400 hover:text-slate-200 transition-colors">
-              <Icon name="lucide:x" class="w-6 h-6" />
-            </button>
-          </div>
-
-          <!-- Scrollable Content -->
-          <div class="flex-1 overflow-y-auto p-6 min-h-0">
-            <form @submit.prevent="handleUpdateTemplate" class="space-y-4">
-              <div>
-                <label class="block text-sm font-light text-slate-300 mb-2">Template Name *</label>
-                <input v-model="newTemplate.name" type="text" required
-                  class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors">
-              </div>
-
-              <div>
-                <label class="block text-sm font-light text-slate-300 mb-2">
-                  Subject
-                  <span class="text-xs text-slate-500 ml-2">Variables: {name}, {first_name}, {preferred_name},
-                    {last_name}, {email}, {gender}. Conditionals: {if_male:text}{if_female:text}</span>
-                </label>
-                <input v-model="newTemplate.subject" type="text"
-                  class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors"
-                  placeholder="Hi {first_name}! 👋">
-              </div>
-
-              <div>
-                <label class="block text-sm font-light text-slate-300 mb-2">
-                  Message Body *
-                  <span class="text-xs text-slate-500 ml-2">Variables: {name}, {first_name}, {preferred_name},
-                    {last_name}, {email}, {codementor_username}, {gender}. Conditionals:
-                    {if_male:text}{if_female:text}</span>
-                </label>
-                <textarea v-model="newTemplate.body" rows="8" required
-                  class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors resize-none"
-                  placeholder="Hi {first_name}! 👋&#10;&#10;Thanks for your interest! 💼&#10;&#10;Your email: {email} 📧&#10;Notes: {notes}&#10;&#10;Best regards! ✨&#10;Your Team 🚀"></textarea>
-              </div>
-
-              <div>
-                <label class="block text-sm font-light text-slate-300 mb-2">
-                  Footer/Signature (Email only)
-                  <span class="text-xs text-slate-500 ml-2">Variables: {name}, {first_name}, {preferred_name},
-                    {last_name}, {email}, {gender}. Conditionals: {if_male:text}{if_female:text}</span>
-                </label>
-                <textarea v-model="newTemplate.footer" rows="3"
-                  class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors resize-none"
-                  placeholder="Best regards,&#10;Your Name"></textarea>
-              </div>
-
-              <div class="flex items-center space-x-4">
-                <label class="flex items-center space-x-2">
-                  <input v-model="newTemplate.is_active" type="checkbox"
-                    class="w-4 h-4 text-emerald-500 bg-slate-700/50 border-emerald-500/30 rounded focus:ring-emerald-400">
-                  <span class="text-sm font-light text-slate-300">Active</span>
-                </label>
-              </div>
-
-              <div class="flex space-x-3 pt-4">
-                <button type="button" @click="showEditTemplateForm = false"
-                  class="flex-1 bg-slate-600/50 text-slate-300 px-4 py-3 rounded-xl font-light hover:bg-slate-600/70 transition-colors">
-                  Cancel
-                </button>
-                <button type="submit"
-                  class="flex-1 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white px-4 py-3 rounded-xl font-light hover:shadow-lg transition-all duration-300">
-                  Update Template
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-
-        <!-- Preview Card -->
-        <div
-          class="bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-2xl border border-emerald-500/20 w-96 flex flex-col overflow-hidden flex-shrink-0">
-          <div class="p-6 border-b border-slate-700/50 flex-shrink-0">
-            <h4 class="text-lg font-thin text-slate-100">Live Preview</h4>
-          </div>
-          <div class="flex-1 overflow-y-auto p-6 min-h-0">
-            <!-- Subject Preview -->
-            <div class="mb-4">
-              <label class="block text-sm font-light text-emerald-400 mb-2">Subject</label>
-              <div class="bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100">
-                {{ previewTemplateSubject }}
-              </div>
-            </div>
-
-            <!-- Body Preview -->
-            <div class="mb-4">
-              <label class="block text-sm font-light text-emerald-400 mb-2">Message Body</label>
-              <div
-                class="bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 min-h-[200px] whitespace-pre-wrap">
-                {{ previewTemplateBody }}
-              </div>
-            </div>
-
-            <!-- Sample Contact Info -->
-            <div class="bg-slate-800/30 border border-emerald-500/20 rounded-xl p-3">
-              <h5 class="text-sm font-light text-emerald-400 mb-2">Preview Data</h5>
-              <div class="text-xs text-slate-300 space-y-1">
-                <div><strong>Name:</strong> John Doe</div>
-                <div><strong>Email:</strong> john@example.com</div>
-                <div><strong>Notes:</strong> Great client! Very responsive 📧</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <TemplateFormModal
+      :show="showEditTemplateForm"
+      :template="newTemplate"
+      :is-edit="true"
+      @close="showEditTemplateForm = false"
+      @save="handleUpdateTemplate"
+    />
   </div>
 
   <!-- Preview Modal -->
-  <div v-if="showPreviewModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+  <div v-if="showPreviewModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-0 sm:p-4">
     <div
-      class="bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-2xl border border-emerald-500/20 p-8 w-full max-w-4xl mx-8">
-      <div class="flex justify-between items-center mb-6">
-        <h3 class="text-2xl font-thin text-slate-100">Template Preview</h3>
+      class="bg-slate-800/90 backdrop-blur-sm rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border border-emerald-500/20 p-4 sm:p-8 w-full h-full sm:h-auto sm:max-w-4xl sm:mx-8 flex flex-col">
+      <div class="flex justify-between items-center mb-4 sm:mb-6 flex-shrink-0">
+        <h3 class="text-xl sm:text-2xl font-thin text-slate-100">Template Preview</h3>
         <button @click="showPreviewModal = false"
-          class="text-slate-400 hover:text-slate-200 transition-colors text-2xl">
-          ×
+          class="text-slate-400 hover:text-slate-200 transition-colors">
+          <Icon name="lucide:x" class="w-6 h-6" />
         </button>
       </div>
 
-      <div class="space-y-6">
+      <div class="flex-1 overflow-y-auto space-y-4 sm:space-y-6">
         <!-- Subject Preview -->
         <div>
           <label class="block text-sm font-light text-emerald-400 mb-3">Subject</label>
@@ -294,7 +76,7 @@
         <div>
           <label class="block text-sm font-light text-emerald-400 mb-3">Message Body</label>
           <div
-            class="bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 min-h-[300px] whitespace-pre-wrap">
+            class="bg-slate-700/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-100 min-h-[200px] sm:min-h-[300px] whitespace-pre-wrap overflow-y-auto">
             {{ previewData.body }}
           </div>
         </div>
@@ -631,15 +413,15 @@ const handleDeleteTemplate = async (templateId) => {
   }
 }
 
-const handleSaveTemplate = async () => {
+const handleSaveTemplate = async (templateData) => {
   // Store the template data before clearing the form
-  const templateData = { ...newTemplate.value }
+  const data = templateData || { ...newTemplate.value }
 
   // Instant UI update
   const tempId = Date.now() // Temporary ID
   const newTemplateData = {
     id: tempId,
-    ...templateData,
+    ...data,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   }
@@ -650,7 +432,7 @@ const handleSaveTemplate = async () => {
 
   // Background API call
   try {
-    const result = await createTemplate(templateData)
+    const result = await createTemplate(data)
     // Update with real ID
     const index = templates.value.findIndex(t => t.id === tempId)
     if (index !== -1) {
@@ -665,7 +447,7 @@ const handleSaveTemplate = async () => {
   }
 }
 
-const handleUpdateTemplate = async () => {
+const handleUpdateTemplate = async (templateData) => {
   if (!editingTemplate.value || !editingTemplate.value.id) {
     console.error('handleUpdateTemplate called but no template is being edited')
     alert('Error: No template selected for editing')
@@ -673,7 +455,7 @@ const handleUpdateTemplate = async () => {
   }
 
   // Store the template data before clearing the form
-  const templateData = { ...newTemplate.value }
+  const data = templateData || { ...newTemplate.value }
   const templateId = editingTemplate.value.id
 
   // Instant UI update
@@ -681,7 +463,7 @@ const handleUpdateTemplate = async () => {
   if (index !== -1) {
     templates.value[index] = {
       ...templates.value[index],
-      ...templateData,
+      ...data,
       updated_at: new Date().toISOString()
     }
   }
@@ -693,7 +475,7 @@ const handleUpdateTemplate = async () => {
 
   // Background API call
   try {
-    await updateTemplate(savedTemplateId, templateData)
+    await updateTemplate(savedTemplateId, data)
     showStatusWithProgressLocal('Template updated successfully', 5000)
   } catch (error) {
     console.error('Error updating template:', error)

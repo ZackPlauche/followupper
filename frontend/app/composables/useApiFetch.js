@@ -70,7 +70,31 @@ export const useApiFetch = () => {
       throw error
     }
 
-    return await response.json()
+    // Handle 204 No Content responses (no body to parse)
+    if (response.status === 204) {
+      return null
+    }
+
+    // Check if response has content before parsing
+    const contentType = response.headers.get('content-type')
+    const contentLength = response.headers.get('content-length')
+    
+    // If no content-type or content-length is 0, return null
+    if (!contentType || (contentLength && parseInt(contentLength) === 0)) {
+      return null
+    }
+
+    // Try to parse JSON response
+    try {
+      const text = await response.text()
+      if (!text || text.trim() === '') {
+        return null
+      }
+      return JSON.parse(text)
+    } catch (e) {
+      // If parsing fails, return null for empty responses
+      return null
+    }
   }
 
   /**
