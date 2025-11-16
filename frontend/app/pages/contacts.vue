@@ -1009,84 +1009,124 @@ const activeFilterCount = computed(() => {
   return count
 })
 
-// Filtered contacts
+// Filtered contacts - optimized single-pass filtering
 const filteredContacts = computed(() => {
-  let result = contacts.value
+  const contactsList = contacts.value
+  if (!contactsList || contactsList.length === 0) return []
 
-  // Search filter (reactive, searches name)
-  if (filterSearch.value.trim()) {
-    const searchLower = filterSearch.value.toLowerCase()
-    result = result.filter(contact =>
-      contact.name?.toLowerCase().includes(searchLower)
-    )
+  // Pre-compute filter conditions to avoid repeated checks
+  const hasSearch = filterSearch.value.trim()
+  const searchLower = hasSearch ? filterSearch.value.toLowerCase() : ''
+  const hasPlatformFilter = filterPlatform.value && filterPlatform.value.length > 0
+  const hasStatusFilter = filterStatus.value !== ''
+  const hasSourceFilter = filterSource.value && filterSource.value.length > 0
+  const hasFavoriteFilter = filterFavorite.value === 'true'
+  const hasLastMessagedFilter = filterLastMessaged.value !== ''
+  
+  // Pre-compute date for last messaged filter (only once per filter run)
+  let now = null
+  if (hasLastMessagedFilter) {
+    now = new Date()
   }
 
-  // Platform filter (multi-select)
-  if (filterPlatform.value && filterPlatform.value.length > 0) {
-    result = result.filter(contact => {
+  // Single pass through all contacts
+  return contactsList.filter(contact => {
+    // Search filter
+    if (hasSearch) {
+      const name = contact.name?.toLowerCase() || ''
+      if (!name.includes(searchLower)) return false
+    }
+
+    // Platform filter
+    if (hasPlatformFilter) {
       const hasEmail = filterPlatform.value.includes('email') && contact.email
       const hasCodementor = filterPlatform.value.includes('codementor') && contact.codementor_username
-      return hasEmail || hasCodementor
-    })
-  }
-
-  // Status filter
-  if (filterStatus.value) {
-    if (filterStatus.value === 'active') {
-      result = result.filter(contact => contact.is_active)
-    } else if (filterStatus.value === 'inactive') {
-      result = result.filter(contact => !contact.is_active)
+      if (!hasEmail && !hasCodementor) return false
     }
-  }
 
-  // Source filter (multi-select)
-  if (filterSource.value && filterSource.value.length > 0) {
-    result = result.filter(contact => {
-      return filterSource.value.some(selectedSource => {
+    // Status filter
+    if (hasStatusFilter) {
+      if (filterStatus.value === 'active' && !contact.is_active) return false
+      if (filterStatus.value === 'inactive' && contact.is_active) return false
+    }
+
+    // Source filter
+    if (hasSourceFilter) {
+      const matchesSource = filterSource.value.some(selectedSource => {
         if (selectedSource === '__empty__') {
           return !contact.source || contact.source === ''
         }
         return contact.source === selectedSource
       })
-    })
-  }
+      if (!matchesSource) return false
+    }
 
-  // Favorite filter
-  if (filterFavorite.value === 'true') {
-    result = result.filter(contact => contact.is_favorite)
-  }
+    // Favorite filter
+    if (hasFavoriteFilter && !contact.is_favorite) {
+      return false
+    }
 
-  // Last Messaged filter
-  if (filterLastMessaged.value) {
-    const now = new Date()
-    result = result.filter(contact => {
+    // Last Messaged filter
+    if (hasLastMessagedFilter) {
+      const filterValue = filterLastMessaged.value
+      
+      // Handle "never" case (contact has never been messaged)
       if (!contact.last_messaged) {
-        return filterLastMessaged.value === 'never'
+        if (filterValue === 'never') {
+          return true // Show contacts who have never been messaged
+        }
+        // For "not contacted in X" filters, never-messaged contacts should be included
+        if (filterValue.startsWith('not_')) {
+          return true
+        }
+        return false
       }
-
+      
+      // Contact has been messaged, calculate days since
       const lastMessagedDate = new Date(contact.last_messaged)
       const daysSince = Math.floor((now - lastMessagedDate) / (1000 * 60 * 60 * 24))
 
-      switch (filterLastMessaged.value) {
+      switch (filterValue) {
+        // Regular filters (contacted within X time)
         case 'never':
           return false // Already handled above
         case 'today':
-          return daysSince === 0
+          if (daysSince !== 0) return false
+          break
         case 'last_7_days':
-          return daysSince <= 7
+          if (daysSince > 7) return false
+          break
         case 'last_30_days':
-          return daysSince <= 30
+          if (daysSince > 30) return false
+          break
         case 'last_90_days':
-          return daysSince <= 90
+          if (daysSince > 90) return false
+          break
         case 'over_90_days':
-          return daysSince > 90
-        default:
-          return true
+          if (daysSince <= 90) return false
+          break
+        
+        // Reverse filters (NOT contacted in X time)
+        case 'not_7_days':
+          if (daysSince <= 7) return false // Exclude if contacted within 7 days
+          break
+        case 'not_30_days':
+          if (daysSince <= 30) return false // Exclude if contacted within 30 days
+          break
+        case 'not_90_days':
+          if (daysSince <= 90) return false // Exclude if contacted within 90 days
+          break
+        case 'not_6_months':
+          if (daysSince <= 180) return false // Exclude if contacted within 6 months (~180 days)
+          break
+        case 'not_1_year':
+          if (daysSince <= 365) return false // Exclude if contacted within 1 year
+          break
       }
-    })
-  }
+    }
 
-  return result
+    return true
+  })
 })
 
 // Toggle favorite

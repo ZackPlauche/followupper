@@ -70,12 +70,21 @@
             <select v-model="localFilters.lastMessaged"
               class="w-full bg-slate-600/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm focus:border-emerald-400 focus:outline-none transition-colors [&>option]:bg-slate-700 [&>option]:text-slate-100">
               <option value="">All</option>
-              <option value="never">Never</option>
-              <option value="today">Today</option>
-              <option value="last_7_days">Last 7 days</option>
-              <option value="last_30_days">Last 30 days</option>
-              <option value="last_90_days">Last 90 days</option>
-              <option value="over_90_days">Over 90 days ago</option>
+              <optgroup label="Contacted">
+                <option value="never">Never</option>
+                <option value="today">Today</option>
+                <option value="last_7_days">Last 7 days</option>
+                <option value="last_30_days">Last 30 days</option>
+                <option value="last_90_days">Last 90 days</option>
+                <option value="over_90_days">Over 90 days ago</option>
+              </optgroup>
+              <optgroup label="Not Contacted In">
+                <option value="not_7_days">Not in last 7 days</option>
+                <option value="not_30_days">Not in last 30 days</option>
+                <option value="not_90_days">Not in last 90 days</option>
+                <option value="not_6_months">Not in last 6 months</option>
+                <option value="not_1_year">Not in last year</option>
+              </optgroup>
             </select>
           </div>
         </div>
@@ -102,10 +111,54 @@ const props = defineProps({
 
 const emit = defineEmits(['update:filters'])
 
-const localFilters = computed({
-  get: () => props.filters,
-  set: (value) => emit('update:filters', value)
+// Create a reactive copy of filters that we can modify
+const localFilters = ref({
+  search: props.filters?.search || '',
+  platform: props.filters?.platform || [],
+  status: props.filters?.status || '',
+  source: props.filters?.source || [],
+  favorite: props.filters?.favorite || '',
+  lastMessaged: props.filters?.lastMessaged || ''
 })
+
+let isUpdatingFromProps = false
+
+// Watch for prop changes and update local filters
+watch(() => props.filters, (newFilters) => {
+  if (newFilters && !isUpdatingFromProps) {
+    isUpdatingFromProps = true
+    localFilters.value = {
+      search: newFilters.search || '',
+      platform: newFilters.platform || [],
+      status: newFilters.status || '',
+      source: newFilters.source || [],
+      favorite: newFilters.favorite || '',
+      lastMessaged: newFilters.lastMessaged || ''
+    }
+    nextTick(() => {
+      isUpdatingFromProps = false
+    })
+  }
+}, { deep: true, immediate: true })
+
+// Watch local filters and emit updates with debouncing for search
+let debounceTimer = null
+watch(localFilters, (newFilters) => {
+  if (!isUpdatingFromProps) {
+    // Debounce search input to avoid excessive filtering
+    if (debounceTimer) {
+      clearTimeout(debounceTimer)
+    }
+    
+    // For search, debounce by 300ms; for others, emit immediately
+    const isSearchChange = newFilters.search !== (props.filters?.search || '')
+    const delay = isSearchChange ? 300 : 0
+    
+    debounceTimer = setTimeout(() => {
+      emit('update:filters', { ...newFilters })
+    }, delay)
+  }
+}, { deep: true })
 </script>
 
 <style scoped>
