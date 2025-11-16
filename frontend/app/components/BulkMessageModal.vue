@@ -15,8 +15,11 @@
       <div class="flex-1 flex flex-col sm:flex-row gap-4 sm:gap-6 overflow-y-auto p-4 sm:p-6 min-h-0">
         <!-- Left: Message Composition -->
         <div class="flex-1 space-y-4">
+          <!-- Variable Hints Info Block -->
+          <VariableHints :show-frequency="false" mb-class="" />
+
           <div>
-            <label class="block text-sm font-light text-slate-300 mb-2">
+            <label class="block text-xs font-light text-slate-300 mb-1">
               Platforms *
               <span class="text-xs text-slate-500 ml-2">(Available for selected contacts)</span>
             </label>
@@ -52,23 +55,14 @@
           </div>
 
           <div v-if="localMessage.usePreferredPlatforms || localMessage.platforms.includes('email')">
-            <label class="block text-xs font-light text-slate-300 mb-1">
-              Subject *
-              <span class="text-xs text-slate-500 ml-2">Variables: {name}, {first_name}, {preferred_name},
-                {last_name}, {email}, {gender}. Conditionals: {if_male:text}{if_female:text}</span>
-            </label>
+            <label class="block text-xs font-light text-slate-300 mb-1">Subject *</label>
             <input v-model="localMessage.subject" type="text" required
               class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors"
               placeholder="Hello {first_name}!" />
           </div>
 
           <div>
-            <label class="block text-xs font-light text-slate-300 mb-1">
-              Message Body *
-              <span class="text-xs text-slate-500 ml-2">Variables: {name}, {first_name}, {preferred_name},
-                {last_name}, {email}, {codementor_username}, {gender}. Conditionals:
-                {if_male:text}{if_female:text}</span>
-            </label>
+            <label class="block text-xs font-light text-slate-300 mb-1">Message Body *</label>
             <textarea v-model="localMessage.body" rows="8" required
               class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors resize-none"
               placeholder="Hi {first_name}, ..."></textarea>
@@ -158,39 +152,16 @@ const canSend = computed(() => {
   return true
 })
 
+const { replaceTemplateVariables } = useTemplateVariables()
+
 const previewText = (text) => {
   if (!text) return ''
-  const contact = {
-    name: 'John Doe',
-    preferred_name: 'Johnny',
-    first_name: 'Johnny',
-    last_name: 'Doe',
-    gender: 'male',
-    email: 'john.doe@example.com',
-    codementor_username: 'johndoe'
-  }
-
-  let result = text
-  if (contact.gender === 'male') {
-    result = result.replace(/\{if_male:([^}]+)\}/g, '$1')
-    result = result.replace(/\{if_female:([^}]+)\}/g, '')
-  } else if (contact.gender === 'female') {
-    result = result.replace(/\{if_female:([^}]+)\}/g, '$1')
-    result = result.replace(/\{if_male:([^}]+)\}/g, '')
-  } else {
-    result = result.replace(/\{if_male:([^}]+)\}/g, '')
-    result = result.replace(/\{if_female:([^}]+)\}/g, '')
-  }
-
-  result = result.replace(/\{name\}/g, contact.name || '')
-  result = result.replace(/\{first_name\}/g, contact.first_name)
-  result = result.replace(/\{preferred_name\}/g, contact.preferred_name)
-  result = result.replace(/\{last_name\}/g, contact.last_name)
-  result = result.replace(/\{gender\}/g, contact.gender)
-  result = result.replace(/\{email\}/g, contact.email || '')
-  result = result.replace(/\{codementor_username\}/g, contact.codementor_username || '')
-
-  return result
+  return replaceTemplateVariables(text, {
+    useSampleData: true,
+    frequencyType: null,
+    frequency: '',
+    frequencyDays: ''
+  })
 }
 
 const handleTemplateChange = () => {

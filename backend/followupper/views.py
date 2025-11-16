@@ -557,6 +557,7 @@ class ContactViewSet(viewsets.ModelViewSet):
             # Helper function to replace template variables
             def replace_template_variables(text, contact_obj):
                 """Replace template variables in message text."""
+                from datetime import datetime
                 result = text
 
                 # Get contact data
@@ -575,6 +576,73 @@ class ContactViewSet(viewsets.ModelViewSet):
                     result = re.sub(r'\{if_male:([^}]+)\}', '', result)
                     result = re.sub(r'\{if_female:([^}]+)\}', '', result)
 
+                # Handle frequency conditionals (remove all for bulk send - no campaign context)
+                frequency_conditionals = [
+                    'if_frequency_daily', 'if_frequency_week', 'if_frequency_month',
+                    'if_frequency_quarter', 'if_frequency_year', 'if_frequency_custom'
+                ]
+                for conditional in frequency_conditionals:
+                    result = re.sub(r'\{' + conditional + r':([^}]+)\}', '', result)
+
+                # Handle seasonal conditionals (seasons: spring, summer, fall, winter)
+                now = datetime.now()
+                month = now.month
+                day = now.day
+                
+                # Determine season
+                season = None
+                if (month == 3 and day >= 20) or month in [4, 5] or (month == 6 and day < 21):
+                    season = 'spring'
+                elif (month == 6 and day >= 21) or month in [7, 8] or (month == 9 and day < 23):
+                    season = 'summer'
+                elif (month == 9 and day >= 23) or month in [10, 11] or (month == 12 and day < 21):
+                    season = 'fall'
+                else:  # December 21 - March 19
+                    season = 'winter'
+                
+                season_conditionals = ['if_spring', 'if_summer', 'if_fall', 'if_winter']
+                for season_conditional in season_conditionals:
+                    season_name = season_conditional.replace('if_', '')
+                    pattern = r'\{' + season_conditional + r':([^}]+)\}'
+                    if season == season_name:
+                        result = re.sub(pattern, r'\1', result)
+                    else:
+                        result = re.sub(pattern, '', result)
+                
+                # Handle holiday conditionals
+                holiday = None
+                if month == 12:
+                    holiday = 'christmas'
+                elif month == 10:
+                    holiday = 'halloween'
+                elif month == 11 and day >= 20:
+                    holiday = 'thanksgiving'
+                elif (month == 3 and day >= 20) or (month == 4 and day <= 30):
+                    holiday = 'easter'
+                elif month == 1 and day <= 7:
+                    holiday = 'newyear'
+
+                # Process holiday conditionals (new naming: if_X, also support old if_season_X)
+                holiday_conditionals = ['if_christmas', 'if_halloween', 'if_thanksgiving', 'if_easter', 'if_newyear']
+                old_holiday_conditionals = ['if_season_christmas', 'if_season_halloween', 'if_season_thanksgiving', 'if_season_easter', 'if_season_newyear']
+                
+                for holiday_conditional in holiday_conditionals + old_holiday_conditionals:
+                    if holiday_conditional.startswith('if_season_'):
+                        holiday_name = holiday_conditional.replace('if_season_', '')
+                    else:
+                        holiday_name = holiday_conditional.replace('if_', '')
+                    pattern = r'\{' + re.escape(holiday_conditional) + r':([^}]+)\}'
+                    if holiday == holiday_name:
+                        result = re.sub(pattern, r'\1', result)
+                    else:
+                        result = re.sub(pattern, '', result)
+                
+                # Process generic if_holiday conditional
+                if holiday:
+                    result = re.sub(r'\{if_holiday:([^}]+)\}', r'\1', result)
+                else:
+                    result = re.sub(r'\{if_holiday:([^}]+)\}', '', result)
+
                 # Replace simplified syntax
                 result = result.replace('{name}', contact_obj.name or '')
                 result = result.replace('{first_name}', first_name)
@@ -583,6 +651,30 @@ class ContactViewSet(viewsets.ModelViewSet):
                 result = result.replace('{email}', contact_obj.email or '')
                 result = result.replace('{codementor_username}', contact_obj.codementor_username or '')
                 result = result.replace('{notes}', contact_obj.notes or '')
+                result = result.replace('{frequency}', '')  # No frequency context in bulk send
+                result = result.replace('{frequency_days}', '')
+                # Add holiday and season variables
+                if holiday:
+                    result = result.replace('{holiday}', holiday.capitalize())
+                else:
+                    result = result.replace('{holiday}', '')
+                if season:
+                    result = result.replace('{season}', season.capitalize())
+                else:
+                    result = result.replace('{season}', '')
+                
+                # Add date variables (last_month, last_year, day, month)
+                from datetime import datetime, timedelta
+                now = datetime.now()
+                last_month_date = (now.replace(day=1) - timedelta(days=1))
+                last_month_name = last_month_date.strftime('%B')  # Full month name (e.g., "January")
+                current_month_name = now.strftime('%B')  # Current month name (e.g., "February")
+                last_year = str(now.year - 1)
+                day_name = now.strftime('%A')  # Full day name (e.g., "Monday")
+                result = result.replace('{last_month}', last_month_name)
+                result = result.replace('{last_year}', last_year)
+                result = result.replace('{day}', day_name)
+                result = result.replace('{month}', current_month_name)
 
                 # Replace old syntax for backwards compatibility
                 result = result.replace('{contact.name}', contact_obj.name or '')
@@ -1157,6 +1249,221 @@ class CampaignViewSet(viewsets.ModelViewSet):
         else:
             assignment.delete()
             return Response({'message': 'Assignment removed successfully'}, status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['post'], url_path='assignments/(?P<assignment_id>[^/.]+)/send-now')
+    def send_assignment_message_now(self, request, pk=None, assignment_id=None):
+        """Send a campaign message immediately for a specific assignment."""
+        try:
+            assignment = CampaignAssignment.objects.get(id=assignment_id, campaign_id=pk)
+        except CampaignAssignment.DoesNotExist:
+            return Response({'error': 'Assignment not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if assignment.status != 'active':
+            return Response(
+                {'error': 'Assignment is not active and cannot send messages'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            scheduler = get_scheduler()
+            # Use assignment's custom message override if available, otherwise campaign template
+            campaign = assignment.campaign
+            original_override = campaign.next_message_override
+            if assignment.custom_message_override:
+                # Temporarily set campaign override to assignment's custom message
+                campaign.next_message_override = assignment.custom_message_override
+            try:
+                scheduler.send_campaign_message(assignment)
+            finally:
+                # Restore original override
+                campaign.next_message_override = original_override
+
+            return Response({
+                'message': 'Message sent successfully',
+                'next_send_date': assignment.next_send_date
+            })
+        except Exception as e:
+            logger = logging.getLogger('followupper')
+            logger.error(f"Failed to send message for assignment {assignment.id}: {str(e)}", exc_info=True)
+            return Response(
+                {'error': f'Failed to send message: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['post'], url_path='test-message')
+    def test_message(self, request, pk=None):
+        """Send a test message for a campaign to a specified contact."""
+        campaign = self.get_object()
+        contact_id = request.data.get('contact_id')
+        platforms = request.data.get('platforms', [])  # Optional: ['email', 'codementor']
+
+        if not contact_id:
+            return Response(
+                {'error': 'Contact ID is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get contact
+        try:
+            contact = Contact.objects.get(id=contact_id)
+        except Contact.DoesNotExist:
+            return Response(
+                {'error': 'Contact not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Get message template
+        message_template = campaign.next_message_override or campaign.message_template or ''
+        if not message_template:
+            return Response(
+                {'error': 'Campaign has no message template'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Use scheduler's template replacement logic
+        scheduler = get_scheduler()
+        
+        # Get template data from contact
+        template_data = contact.get_template_data()
+        
+        # Check if there's an assignment for this contact with custom frequency
+        assignment = None
+        try:
+            assignment = CampaignAssignment.objects.get(campaign=campaign, contact=contact)
+        except CampaignAssignment.DoesNotExist:
+            pass
+        
+        # Determine frequency type and days (use assignment custom if available, otherwise campaign defaults)
+        if assignment and assignment.custom_frequency_days:
+            frequency_days = assignment.custom_frequency_days
+            frequency_type = scheduler._days_to_frequency_type(frequency_days)
+        else:
+            frequency_type = campaign.frequency_type or 'weekly'
+            frequency_days = campaign.default_frequency_days or 7
+        
+        # Set frequency to simple word (day, week, month, quarter, year)
+        frequency_map = {
+            'daily': 'day',
+            'weekly': 'week',
+            'monthly': 'month',
+            'quarterly': 'quarter',
+            'yearly': 'year',
+            'custom': 'period'
+        }
+        frequency_word = frequency_map.get(frequency_type, '')
+        template_data['frequency'] = frequency_word
+        template_data['frequency_type'] = frequency_type
+        template_data['frequency_days'] = str(frequency_days)
+        
+        # Add seasonal information
+        season_info = scheduler._get_current_season()
+        template_data['season'] = season_info.get('season')
+        template_data['holiday'] = season_info.get('holiday')
+        
+        # Replace template variables
+        message_body = scheduler._replace_template_variables(message_template, template_data, frequency_type)
+        
+        # Get subject - for recurring campaigns, use subject_template if it exists
+        # For sequence campaigns, subjects are per-step, so use default
+        if campaign.campaign_type == 'recurring':
+            subject_template = campaign.subject_template or ''
+            if subject_template and subject_template.strip():
+                subject = scheduler._replace_template_variables(subject_template.strip(), template_data, frequency_type)
+            else:
+                subject = campaign.name
+        else:
+            # For sequence campaigns, use default (subjects are per-step)
+            subject = campaign.name
+
+        # Determine platforms to use
+        if not platforms:
+            # Auto-detect based on contact's available platforms
+            if contact.email:
+                platforms.append('email')
+            if contact.codementor_username:
+                platforms.append('codementor')
+        
+        if not platforms:
+            return Response(
+                {'error': 'Contact has no available platforms (email or Codementor)'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate platforms
+        valid_platforms = []
+        if 'email' in platforms:
+            if not contact.email:
+                return Response(
+                    {'error': 'Contact does not have an email address'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            valid_platforms.append('email')
+
+        if 'codementor' in platforms:
+            if not contact.codementor_username:
+                return Response(
+                    {'error': 'Contact does not have a Codementor username'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            valid_platforms.append('codementor')
+
+        if not valid_platforms:
+            return Response(
+                {'error': 'No valid platforms available for this contact'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Send the test message
+        sent_platforms = []
+        errors = []
+        email_message_id = None
+
+        # Send via email if requested
+        if 'email' in valid_platforms:
+            success, msg_id, error = _send_email_message(contact, subject, message_body)
+            if success:
+                sent_platforms.append('email')
+                email_message_id = msg_id
+            else:
+                errors.append(error)
+
+        # Send via Codementor if requested (with rate limiting)
+        if 'codementor' in valid_platforms:
+            success, error = _send_codementor_message(contact, message_body)
+            if success:
+                sent_platforms.append('codementor')
+            else:
+                errors.append(error)
+
+        if not sent_platforms:
+            return Response(
+                {'error': 'Failed to send test message', 'details': errors},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        # Store in message history (marked as test)
+        message_record = _save_message_history(contact, subject, message_body, sent_platforms, email_message_id)
+
+        response_message = f'Test message sent via {", ".join(sent_platforms)}'
+        if errors:
+            response_message += f' (warnings: {"; ".join(errors)})'
+
+        response_data = {
+            'message': response_message,
+            'sent_platforms': sent_platforms,
+            'errors': errors if errors else None,
+            'preview': {
+                'subject': subject,
+                'body': message_body
+            }
+        }
+
+        if email_message_id:
+            response_data['email_message_id'] = email_message_id
+        if message_record:
+            response_data['message_id'] = message_record.id
+
+        return Response(response_data)
 
 
 # Health check view

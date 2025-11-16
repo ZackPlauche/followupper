@@ -1143,6 +1143,81 @@ const getPreviewText = (text, contact) => {
     result = result.replace(/\{if_female:([^}]+)\}/g, '')
   }
 
+  // Handle frequency conditionals (remove all for non-campaign messages)
+  const frequencyConditionals = [
+    'if_frequency_daily', 'if_frequency_week', 'if_frequency_month',
+    'if_frequency_quarter', 'if_frequency_year', 'if_frequency_custom'
+  ]
+  frequencyConditionals.forEach(conditional => {
+    result = result.replace(new RegExp(`\\{${conditional}:([^}]+)\\}`, 'g'), '')
+  })
+
+  // Handle seasonal conditionals (seasons: spring, summer, fall, winter)
+  const now = new Date()
+  const month = now.getMonth() + 1 // 1-12
+  const day = now.getDate()
+  
+  // Determine season
+  let season = null
+  if ((month === 3 && day >= 20) || [4, 5].includes(month) || (month === 6 && day < 21)) {
+    season = 'spring'
+  } else if ((month === 6 && day >= 21) || [7, 8].includes(month) || (month === 9 && day < 23)) {
+    season = 'summer'
+  } else if ((month === 9 && day >= 23) || [10, 11].includes(month) || (month === 12 && day < 21)) {
+    season = 'fall'
+  } else { // December 21 - March 19
+    season = 'winter'
+  }
+  
+  const seasonConditionals = ['if_spring', 'if_summer', 'if_fall', 'if_winter']
+  seasonConditionals.forEach(seasonConditional => {
+    const seasonName = seasonConditional.replace('if_', '')
+    const pattern = new RegExp(`\\{${seasonConditional}:([^}]+)\\}`, 'g')
+    if (season === seasonName) {
+      result = result.replace(pattern, '$1')
+    } else {
+      result = result.replace(pattern, '')
+    }
+  })
+  
+  // Handle holiday conditionals
+  let holiday = null
+  if (month === 12) {
+    holiday = 'christmas'
+  } else if (month === 10) {
+    holiday = 'halloween'
+  } else if (month === 11 && day >= 20) {
+    holiday = 'thanksgiving'
+  } else if ((month === 3 && day >= 20) || (month === 4 && day <= 30)) {
+    holiday = 'easter'
+  } else if (month === 1 && day <= 7) {
+    holiday = 'newyear'
+  }
+
+  // Process holiday conditionals (new naming: if_X, also support old if_season_X)
+  const holidayConditionals = ['if_christmas', 'if_halloween', 'if_thanksgiving', 'if_easter', 'if_newyear']
+  const oldHolidayConditionals = ['if_season_christmas', 'if_season_halloween', 'if_season_thanksgiving', 'if_season_easter', 'if_season_newyear']
+  
+  ;[...holidayConditionals, ...oldHolidayConditionals].forEach(holidayConditional => {
+    const holidayName = holidayConditional.startsWith('if_season_') 
+      ? holidayConditional.replace('if_season_', '')
+      : holidayConditional.replace('if_', '')
+    const escaped = holidayConditional.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const pattern = new RegExp(`\\{${escaped}:([^}]+)\\}`, 'g')
+    if (holiday === holidayName) {
+      result = result.replace(pattern, '$1')
+    } else {
+      result = result.replace(pattern, '')
+    }
+  })
+  
+  // Process generic if_holiday conditional
+  if (holiday) {
+    result = result.replace(/\{if_holiday:([^}]+)\}/g, '$1')
+  } else {
+    result = result.replace(/\{if_holiday:([^}]+)\}/g, '')
+  }
+
   // Replace simplified syntax first (e.g., {first_name}, {name})
   result = result.replace(/\{name\}/g, contact.name || '')
   result = result.replace(/\{first_name\}/g, firstName)
@@ -1151,6 +1226,21 @@ const getPreviewText = (text, contact) => {
   result = result.replace(/\{gender\}/g, gender)
   result = result.replace(/\{email\}/g, contact.email || '')
   result = result.replace(/\{codementor_username\}/g, contact.codementor_username || '')
+  result = result.replace(/\{frequency\}/g, '') // No frequency context
+  result = result.replace(/\{frequency_days\}/g, '')
+  result = result.replace(/\{season\}/g, season ? season.charAt(0).toUpperCase() + season.slice(1) : '')
+  result = result.replace(/\{holiday\}/g, holiday ? holiday.charAt(0).toUpperCase() + holiday.slice(1) : '')
+  
+  // Add date variables (last_month, last_year, day, month) - reuse existing 'now' variable
+  const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const lastMonthName = lastMonthDate.toLocaleString('default', { month: 'long' }) // Full month name (e.g., "January")
+  const currentMonthName = now.toLocaleString('default', { month: 'long' }) // Current month name (e.g., "February")
+  const lastYear = String(now.getFullYear() - 1)
+  const dayName = now.toLocaleString('default', { weekday: 'long' }) // Full day name (e.g., "Monday")
+  result = result.replace(/\{last_month\}/g, lastMonthName)
+  result = result.replace(/\{last_year\}/g, lastYear)
+  result = result.replace(/\{day\}/g, dayName)
+  result = result.replace(/\{month\}/g, currentMonthName)
 
   // Replace old contact variables (for backwards compatibility)
   result = result.replace(/\{contact\.name\}/g, contact.name || '')

@@ -9,7 +9,8 @@ from django.utils import timezone
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from .models import CampaignAssignment, Campaign, PlatformCredentials, Contact, AutomationSettings, MessageSequence, Message
+from .models import CampaignAssignment, Campaign, PlatformCredentials, Contact, AutomationSettings, MessageSequence, Message, UserSettings
+from .rate_limiter import CodementorRateLimiter
 
 logger = logging.getLogger('followupper')
 
@@ -96,15 +97,50 @@ class CampaignScheduler:
         campaign = assignment.campaign
         contact = assignment.contact
 
-        # Get message content
-        message_template = campaign.next_message_override or campaign.message_template or ''
+        # Get message content - use assignment's custom message override if available
+        message_template = assignment.custom_message_override or campaign.next_message_override or campaign.message_template or ''
         if not message_template:
             logger.warning(f"Campaign {campaign.id} has no message template, skipping")
             return
 
         # Replace template variables
         template_data = contact.get_template_data()
-        message_body = self._replace_template_variables(message_template, template_data)
+        
+        # Determine frequency type and days
+        # If assignment has custom_frequency_days, determine type from days
+        # Otherwise use campaign's frequency_type
+        if assignment.custom_frequency_days:
+            frequency_days = assignment.custom_frequency_days
+            frequency_type = self._days_to_frequency_type(frequency_days)
+        else:
+            frequency_type = campaign.frequency_type or 'weekly'
+            frequency_days = campaign.default_frequency_days or 7
+        
+        # Set frequency to simple word (day, week, month, quarter, year)
+        frequency_map = {
+            'daily': 'day',
+            'weekly': 'week',
+            'monthly': 'month',
+            'quarterly': 'quarter',
+            'yearly': 'year',
+            'custom': 'period'
+        }
+        frequency_word = frequency_map.get(frequency_type, '')
+        template_data['frequency'] = frequency_word
+        template_data['frequency_type'] = frequency_type
+        template_data['frequency_days'] = str(frequency_days)
+        
+        # Add seasonal information
+        season_info = self._get_current_season()
+        template_data['season'] = season_info.get('season')
+        template_data['holiday'] = season_info.get('holiday')
+        
+        message_body = self._replace_template_variables(message_template, template_data, frequency_type)
+
+        # Get subject for recurring campaigns
+        subject = None
+        if campaign.campaign_type == 'recurring' and campaign.subject_template:
+            subject = self._replace_template_variables(campaign.subject_template, template_data, frequency_type)
 
         # Determine platform and recipient
         # Handle both legacy string format and new array format
@@ -154,7 +190,7 @@ class CampaignScheduler:
         # Send the message
         try:
             if platform == 'email':
-                self._send_email(contact, message_body)
+                self._send_email(contact, message_body, subject=subject)
             elif platform == 'codementor':
                 self._send_codementor_message(contact, message_body)
             else:
@@ -234,7 +270,7 @@ class CampaignScheduler:
         return message_id
 
     def _send_codementor_message(self, contact, body):
-        """Send a message via Codementor API.
+        """Send a message via Codementor API with rate limiting.
 
         Args:
             contact: Contact instance with codementor_username
@@ -245,76 +281,289 @@ class CampaignScheduler:
         """
         import codementorapi
 
-        # Get Codementor credentials
-        codementor_creds = PlatformCredentials.objects.filter(platform='codementor').first()
-        if not codementor_creds:
-            raise Exception("Codementor credentials not configured")
+        # Get rate limiting settings
+        user_settings = UserSettings.get_settings()
+        max_concurrent = user_settings.codementor_max_concurrent or 1
+        send_interval = user_settings.codementor_send_interval or 5
 
-        creds_data = codementor_creds.get_credentials()
-        access_token = creds_data.get('access_token', '').strip()
-        refresh_token = creds_data.get('refresh_token', '').strip()
+        logger.info(f"[CAMPAIGN_SEND] Codementor send requested for contact {contact.id} ({contact.name})")
+        logger.info(f"[CAMPAIGN_SEND] Rate limit settings: max_concurrent={max_concurrent}, send_interval={send_interval}")
 
-        if not access_token or not refresh_token:
-            raise Exception("Codementor credentials are incomplete")
+        # Get rate limiter and wait for slot
+        rate_limiter = CodementorRateLimiter.get_instance()
+        logger.info(f"[CAMPAIGN_SEND] Waiting for rate limit slot...")
+        rate_limiter.wait_for_slot(max_concurrent, send_interval)
+        logger.info(f"[CAMPAIGN_SEND] Rate limit slot acquired, sending message...")
 
-        if not contact.codementor_username:
-            raise Exception(f"Contact {contact.name} has no Codementor username")
+        try:
+            # Get Codementor credentials
+            codementor_creds = PlatformCredentials.objects.filter(platform='codementor').first()
+            if not codementor_creds:
+                raise Exception("Codementor credentials not configured")
 
-        # Create Codementor client and send message
-        client = codementorapi.Client(
-            access_token=access_token,
-            refresh_token=refresh_token
-        )
+            creds_data = codementor_creds.get_credentials()
+            access_token = creds_data.get('access_token', '').strip()
+            refresh_token = creds_data.get('refresh_token', '').strip()
 
-        client.send_message(contact.codementor_username, body)
-        return True
+            if not access_token or not refresh_token:
+                raise Exception("Codementor credentials are incomplete")
 
-    def _replace_template_variables(self, template, data):
-        """Replace template variables in message."""
-        message = template
+            if not contact.codementor_username:
+                raise Exception(f"Contact {contact.name} has no Codementor username")
 
-        # Extract all available fields from contact/user data
-        contact_data = data.get('contact', {})
-        user_data = data.get('user', {})
+            send_start_time = datetime.now()
+            logger.info(f"[CAMPAIGN_SEND] Sending Codementor message at {send_start_time}")
+            
+            # Create Codementor client and send message
+            client = codementorapi.Client(
+                access_token=access_token,
+                refresh_token=refresh_token
+            )
 
-        # Get gender (prefer contact, fallback to user)
-        gender = contact_data.get('gender', '') or user_data.get('gender', '')
+            client.send_message(contact.codementor_username, body)
+            
+            send_end_time = datetime.now()
+            send_duration = (send_end_time - send_start_time).total_seconds()
+            logger.info(f"[CAMPAIGN_SEND] Codementor message sent successfully in {send_duration:.2f}s")
+            return True
+        except Exception as e:
+            logger.error(f"[CAMPAIGN_SEND] Codementor send failed: {str(e)}", exc_info=True)
+            raise
+        finally:
+            # Release the slot after sending (even on error)
+            logger.info(f"[CAMPAIGN_SEND] Releasing rate limit slot...")
+            try:
+                rate_limiter.release_slot()
+            except BaseException:
+                pass
 
-        # Handle gender-based conditionals first (e.g., {if_male:text}{if_female:text})
-        import re
-        # Replace {if_male:text} blocks
-        if gender == 'male':
-            message = re.sub(r'\{if_male:([^}]+)\}', r'\1', message)
-            message = re.sub(r'\{if_female:([^}]+)\}', '', message)
-        elif gender == 'female':
-            message = re.sub(r'\{if_female:([^}]+)\}', r'\1', message)
-            message = re.sub(r'\{if_male:([^}]+)\}', '', message)
+    def _days_to_frequency_type(self, days):
+        """Convert frequency days to frequency type."""
+        if days == 1:
+            return 'daily'
+        elif days == 7:
+            return 'weekly'
+        elif days == 30:
+            return 'monthly'
+        elif days == 90:
+            return 'quarterly'
+        elif days == 365:
+            return 'yearly'
         else:
-            # If gender not specified, remove both blocks
-            message = re.sub(r'\{if_male:([^}]+)\}', '', message)
-            message = re.sub(r'\{if_female:([^}]+)\}', '', message)
+            return 'custom'
 
-        # Create a flat mapping for simplified syntax
-        simplified_vars = {}
-        for key, value in contact_data.items():
-            simplified_vars[key] = str(value)
-        # User data takes precedence if it exists
-        for key, value in user_data.items():
-            simplified_vars[key] = str(value)
+    def _format_frequency(self, days, frequency_type=None):
+        """Format frequency into a readable string."""
+        if frequency_type:
+            type_map = {
+                'daily': 'Daily',
+                'weekly': 'Weekly',
+                'monthly': 'Monthly',
+                'quarterly': 'Quarterly',
+                'yearly': 'Yearly',
+                'custom': f'Every {days} days'
+            }
+            return type_map.get(frequency_type, f'Every {days} days')
+        
+        # Fallback to days-based formatting
+        if days == 1:
+            return 'Daily'
+        elif days == 7:
+            return 'Weekly'
+        elif days == 30:
+            return 'Monthly'
+        elif days == 90:
+            return 'Quarterly'
+        elif days == 365:
+            return 'Yearly'
+        else:
+            return f'Every {days} days'
 
-        # Replace simplified syntax (e.g., {first_name}, {name})
-        for var_name, var_value in simplified_vars.items():
-            message = message.replace(f'{{{var_name}}}', var_value)
+    def _get_current_season(self):
+        """Determine current season/holiday."""
+        from datetime import datetime
+        now = datetime.now()
+        month = now.month
+        day = now.day
+        
+        # Determine season based on month
+        # Spring: March 20 - June 20 (Northern Hemisphere)
+        # Summer: June 21 - September 22
+        # Fall: September 23 - December 20
+        # Winter: December 21 - March 19
+        
+        season = None
+        if (month == 3 and day >= 20) or month in [4, 5] or (month == 6 and day < 21):
+            season = 'spring'
+        elif (month == 6 and day >= 21) or month in [7, 8] or (month == 9 and day < 23):
+            season = 'summer'
+        elif (month == 9 and day >= 23) or month in [10, 11] or (month == 12 and day < 21):
+            season = 'fall'
+        else:  # December 21 - March 19
+            season = 'winter'
+        
+        # Check for specific holidays (these take precedence for holiday-specific conditionals)
+        holiday = None
+        if month == 12:
+            holiday = 'christmas'
+        elif month == 10:
+            holiday = 'halloween'
+        elif month == 11 and day >= 20:
+            holiday = 'thanksgiving'
+        elif (month == 3 and day >= 20) or (month == 4 and day <= 30):
+            holiday = 'easter'
+        elif month == 1 and day <= 7:
+            holiday = 'newyear'
+        
+        return {
+            'season': season,
+            'holiday': holiday
+        }
 
-        # Then handle old syntax for backwards compatibility (e.g., {contact.first_name}, {user.name})
-        for key, value in data.items():
-            if isinstance(value, dict):
-                for sub_key, sub_value in value.items():
-                    message = message.replace(f'{{{key}.{sub_key}}}', str(sub_value))
-            else:
-                message = message.replace(f'{{{key}}}', str(value))
-
-        return message
+    def _replace_template_variables(self, template, data, frequency_type=None):
+        """Replace template variables in message with support for nested conditionals."""
+        import re
+        
+        # Helper function to recursively process conditionals and variables
+        def process_recursive(text, max_depth=10):
+            """Recursively process conditionals and variables."""
+            if max_depth <= 0:
+                return text
+            
+            # Get current values
+            contact_data = data.get('contact', {})
+            user_data = data.get('user', {})
+            gender = contact_data.get('gender', '') or user_data.get('gender', '')
+            season = data.get('season')
+            holiday = data.get('holiday')
+            
+            result = text
+            changed = True
+            
+            # Process until no more changes (handles nested conditionals)
+            while changed and max_depth > 0:
+                changed = False
+                max_depth -= 1
+                prev_result = result
+                
+                # 1. Process gender conditionals
+                if gender == 'male':
+                    result = re.sub(r'\{if_male:([^}]+)\}', lambda m: process_recursive(m.group(1), max_depth), result)
+                    result = re.sub(r'\{if_female:([^}]+)\}', '', result)
+                elif gender == 'female':
+                    result = re.sub(r'\{if_female:([^}]+)\}', lambda m: process_recursive(m.group(1), max_depth), result)
+                    result = re.sub(r'\{if_male:([^}]+)\}', '', result)
+                else:
+                    result = re.sub(r'\{if_male:([^}]+)\}', '', result)
+                    result = re.sub(r'\{if_female:([^}]+)\}', '', result)
+                
+                # 2. Process frequency conditionals
+                if frequency_type:
+                    frequency_conditionals = {
+                        'daily': 'if_frequency_daily',
+                        'weekly': 'if_frequency_week',
+                        'monthly': 'if_frequency_month',
+                        'quarterly': 'if_frequency_quarter',
+                        'yearly': 'if_frequency_year',
+                        'custom': 'if_frequency_custom'
+                    }
+                    current_freq_conditional = frequency_conditionals.get(frequency_type, None)
+                    
+                    for freq_type, conditional in frequency_conditionals.items():
+                        pattern = r'\{' + conditional + r':([^}]+)\}'
+                        if conditional == current_freq_conditional:
+                            result = re.sub(pattern, lambda m: process_recursive(m.group(1), max_depth), result)
+                        else:
+                            result = re.sub(pattern, '', result)
+                
+                # 3. Process seasonal conditionals
+                season_conditionals = ['if_spring', 'if_summer', 'if_fall', 'if_winter']
+                for season_conditional in season_conditionals:
+                    season_name = season_conditional.replace('if_', '')
+                    pattern = r'\{' + season_conditional + r':([^}]+)\}'
+                    if season == season_name:
+                        result = re.sub(pattern, lambda m: process_recursive(m.group(1), max_depth), result)
+                    else:
+                        result = re.sub(pattern, '', result)
+                
+                # 4. Process holiday conditionals (renamed from if_season_X to if_X)
+                holiday_conditionals = ['if_christmas', 'if_halloween', 'if_thanksgiving', 'if_easter', 'if_newyear']
+                # Also support old if_season_X for backwards compatibility
+                old_holiday_conditionals = ['if_season_christmas', 'if_season_halloween', 'if_season_thanksgiving', 'if_season_easter', 'if_season_newyear']
+                
+                for holiday_conditional in holiday_conditionals + old_holiday_conditionals:
+                    if holiday_conditional.startswith('if_season_'):
+                        holiday_name = holiday_conditional.replace('if_season_', '')
+                    else:
+                        holiday_name = holiday_conditional.replace('if_', '')
+                    
+                    pattern = r'\{' + re.escape(holiday_conditional) + r':([^}]+)\}'
+                    if holiday == holiday_name:
+                        result = re.sub(pattern, lambda m: process_recursive(m.group(1), max_depth), result)
+                    else:
+                        result = re.sub(pattern, '', result)
+                
+                # 5. Process generic if_holiday conditional
+                if holiday:
+                    result = re.sub(r'\{if_holiday:([^}]+)\}', lambda m: process_recursive(m.group(1), max_depth), result)
+                else:
+                    result = re.sub(r'\{if_holiday:([^}]+)\}', '', result)
+                
+                # 6. Replace variables (after conditionals are processed)
+                # Create a flat mapping for simplified syntax
+                simplified_vars = {}
+                for key, value in contact_data.items():
+                    simplified_vars[key] = str(value)
+                for key, value in user_data.items():
+                    simplified_vars[key] = str(value)
+                
+                # Add holiday and season variables
+                if holiday:
+                    # Capitalize first letter for display
+                    holiday_display = holiday.capitalize()
+                    simplified_vars['holiday'] = holiday_display
+                if season:
+                    # Capitalize first letter for display
+                    season_display = season.capitalize()
+                    simplified_vars['season'] = season_display
+                
+                # Add date variables (last_month, last_year, day, month)
+                from datetime import datetime, timedelta
+                now = datetime.now()
+                last_month_date = (now.replace(day=1) - timedelta(days=1))
+                last_month_name = last_month_date.strftime('%B')  # Full month name (e.g., "January")
+                current_month_name = now.strftime('%B')  # Current month name (e.g., "February")
+                last_year = str(now.year - 1)
+                day_name = now.strftime('%A')  # Full day name (e.g., "Monday")
+                simplified_vars['last_month'] = last_month_name
+                simplified_vars['last_year'] = last_year
+                simplified_vars['day'] = day_name
+                simplified_vars['month'] = current_month_name
+                
+                # Replace variables
+                for var_name, var_value in simplified_vars.items():
+                    result = result.replace(f'{{{var_name}}}', var_value)
+                
+                # Replace frequency variables
+                if 'frequency' in data:
+                    result = result.replace('{frequency}', str(data['frequency']))
+                if 'frequency_days' in data:
+                    result = result.replace('{frequency_days}', str(data['frequency_days']))
+                
+                # Handle old syntax for backwards compatibility
+                for key, value in data.items():
+                    if isinstance(value, dict):
+                        for sub_key, sub_value in value.items():
+                            result = result.replace(f'{{{key}.{sub_key}}}', str(sub_value))
+                    else:
+                        result = result.replace(f'{{{key}}}', str(value))
+                
+                if result != prev_result:
+                    changed = True
+            
+            return result
+        
+        return process_recursive(template)
 
     def _calculate_next_send_date(self, campaign, assignment):
         """Calculate the next send date (reuses logic from serializer)."""

@@ -203,7 +203,8 @@ class CampaignAssignmentSerializer(serializers.ModelSerializer):
 
         elif frequency_type == 'weekly':
             # Get the target day of week from send_day (0=Monday, 6=Sunday)
-            send_day = campaign.send_day
+            # Use assignment's custom_send_day if set, otherwise campaign's send_day
+            send_day = assignment.custom_send_day or campaign.send_day
             try:
                 target_weekday = int(send_day) if send_day else now_tz.weekday()
             except (ValueError, TypeError):
@@ -226,7 +227,7 @@ class CampaignAssignmentSerializer(serializers.ModelSerializer):
             next_date += timedelta(days=days_ahead)
 
         elif frequency_type == 'monthly':
-            send_day = campaign.send_day or '1'
+            send_day = assignment.custom_send_day or campaign.send_day or '1'
             if send_day == 'last':
                 # Last day of current or next month
                 # Try current month first
@@ -246,28 +247,33 @@ class CampaignAssignmentSerializer(serializers.ModelSerializer):
                     day = int(send_day)
                 except ValueError:
                     day = 1
-                # This month or next month
+                
+                # Helper function to get last day of a month
+                def get_last_day_of_month(dt):
+                    return (dt.replace(day=1) + relativedelta(months=1) - timedelta(days=1)).day
+                
+                # Try current month
                 try:
                     next_date = now_tz.replace(day=day, hour=hour, minute=minute, second=0, microsecond=0)
                 except ValueError:
-                    # Day doesn't exist in current month (e.g., Feb 30), use next month
-                    next_date = (now_tz.replace(day=1) + relativedelta(months=1)).replace(day=day, hour=hour, minute=minute, second=0, microsecond=0)
+                    # Day doesn't exist in current month (e.g., Feb 30), use last day of current month
+                    last_day = get_last_day_of_month(now_tz)
+                    next_date = (now_tz.replace(day=1) + relativedelta(months=1) - timedelta(days=1))
+                    next_date = next_date.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                
+                # If the date has passed, move to next month
                 if next_date <= now_tz:
+                    next_date += relativedelta(months=1)
+                    # Re-validate the day exists in the new month
                     try:
-                        next_date += relativedelta(months=1)
+                        next_date = next_date.replace(day=day)
                     except ValueError:
-                        # If next month doesn't have that day, find the next valid month
-                        next_date = (now_tz.replace(day=1) + relativedelta(months=2))
-                        while True:
-                            try:
-                                next_date = next_date.replace(day=day)
-                                break
-                            except ValueError:
-                                next_date += relativedelta(months=1)
+                        # Day doesn't exist in new month, use last day of that month
+                        next_date = (next_date.replace(day=1) + relativedelta(months=1) - timedelta(days=1))
                         next_date = next_date.replace(hour=hour, minute=minute, second=0, microsecond=0)
 
         elif frequency_type == 'quarterly':
-            send_day = campaign.send_day or '1'
+            send_day = assignment.custom_send_day or campaign.send_day or '1'
             if send_day == 'last':
                 # Last day of current quarter
                 quarter = (now_tz.month - 1) // 3
@@ -278,15 +284,33 @@ class CampaignAssignmentSerializer(serializers.ModelSerializer):
                     day = int(send_day)
                 except ValueError:
                     day = 1
+                
                 # This quarter or next quarter
                 quarter = (now_tz.month - 1) // 3
                 next_month = quarter * 3 + 1
-                next_date = now_tz.replace(month=next_month, day=day, hour=hour, minute=minute, second=0, microsecond=0)
+                
+                # Try first month of current quarter
+                try:
+                    next_date = now_tz.replace(month=next_month, day=day, hour=hour, minute=minute, second=0, microsecond=0)
+                except ValueError:
+                    # Day doesn't exist in first month, use last day of first month
+                    next_date = (now_tz.replace(month=next_month, day=1) + relativedelta(months=1) - timedelta(days=1))
+                    next_date = next_date.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                
+                # If the date has passed, move to next quarter
                 if next_date <= now_tz:
                     next_date += relativedelta(months=3)
+                    # Re-validate the day exists in the first month of next quarter
+                    quarter_start = ((next_date.month - 1) // 3) * 3 + 1
+                    try:
+                        next_date = next_date.replace(month=quarter_start, day=day)
+                    except ValueError:
+                        # Day doesn't exist, use last day of first month of quarter
+                        next_date = (next_date.replace(month=quarter_start, day=1) + relativedelta(months=1) - timedelta(days=1))
+                    next_date = next_date.replace(hour=hour, minute=minute, second=0, microsecond=0)
 
         elif frequency_type == 'yearly':
-            send_day = campaign.send_day or '01-01'
+            send_day = assignment.custom_send_day or campaign.send_day or '01-01'
             # send_day should be in format "MM-DD"
             try:
                 if '-' in send_day:
@@ -303,16 +327,19 @@ class CampaignAssignmentSerializer(serializers.ModelSerializer):
             try:
                 next_date = now_tz.replace(month=month, day=day, hour=hour, minute=minute, second=0, microsecond=0)
             except ValueError:
-                # Day doesn't exist in this month (e.g., Feb 30), use next year
-                next_date = (now_tz.replace(month=1, day=1) + relativedelta(years=1)).replace(month=month, day=day, hour=hour, minute=minute, second=0, microsecond=0)
+                # Day doesn't exist in this month (e.g., Feb 30), use last day of that month this year
+                next_date = (now_tz.replace(month=month, day=1) + relativedelta(months=1) - timedelta(days=1))
+                next_date = next_date.replace(hour=hour, minute=minute, second=0, microsecond=0)
 
             # If this year's date has passed, use next year
             if next_date <= now_tz:
+                next_year = next_date.year + 1
                 try:
-                    next_date = next_date.replace(year=next_date.year + 1)
+                    next_date = next_date.replace(year=next_year, month=month, day=day)
                 except ValueError:
-                    # Handle leap year edge case (Feb 29)
-                    next_date = (next_date.replace(month=1, day=1) + relativedelta(years=1)).replace(month=month, day=day, hour=hour, minute=minute, second=0, microsecond=0)
+                    # Day doesn't exist in next year's month (e.g., Feb 30), use last day of that month
+                    next_date = (next_date.replace(year=next_year, month=month, day=1) + relativedelta(months=1) - timedelta(days=1))
+                    next_date = next_date.replace(hour=hour, minute=minute, second=0, microsecond=0)
 
         else:  # custom
             # For custom frequency, calculate from now + frequency_days at the send time
