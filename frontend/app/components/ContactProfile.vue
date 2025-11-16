@@ -199,8 +199,8 @@
 
                 <!-- Subject (only for email) -->
                 <div v-if="singleMessage.platforms.includes('email')">
-                  <label class="block text-xs font-light text-slate-300 mb-1">Subject *</label>
-                  <input v-model="singleMessage.subject" type="text" required
+                  <label class="block text-xs font-light text-slate-300 mb-1">Subject (optional)</label>
+                  <input v-model="singleMessage.subject" type="text"
                     class="w-full bg-slate-600/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm focus:border-emerald-400 focus:outline-none transition-colors"
                     placeholder="Message subject">
                 </div>
@@ -264,9 +264,8 @@
                 <!-- Global Chain Settings -->
                 <!-- Subject (only for email) -->
                 <div v-if="chainSettings.platforms.includes('email')">
-                  <label class="block text-xs font-light text-slate-300 mb-2">Subject (applies to all messages)
-                    *</label>
-                  <input v-model="chainSubject" type="text" required
+                  <label class="block text-xs font-light text-slate-300 mb-2">Subject (applies to all messages, optional)</label>
+                  <input v-model="chainSubject" type="text"
                     class="w-full bg-slate-600/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm focus:border-emerald-400 focus:outline-none transition-colors"
                     placeholder="Message subject">
                 </div>
@@ -1279,10 +1278,6 @@ const saveSingleMessage = async () => {
     return
   }
 
-  if (singleMessage.value.platforms.includes('email') && !singleMessage.value.subject.trim()) {
-    alert('Subject is required for email messages')
-    return
-  }
 
   try {
     // If sending now (not scheduled), send immediately
@@ -1552,11 +1547,6 @@ const saveMessageChain = async () => {
     return
   }
 
-  // Validate subject if email is selected
-  if (chainSettings.value.platforms.includes('email') && !chainSubject.value.trim()) {
-    alert('Subject is required when email is selected')
-    return
-  }
 
   // Validate that all messages have body
   if (messageChain.value.some(msg => !msg.body.trim())) {

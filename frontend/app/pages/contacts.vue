@@ -49,6 +49,13 @@
         </div>
       </div>
 
+      <!-- Search Bar (Always Visible) -->
+      <div class="mb-4">
+        <label class="block text-sm font-light text-slate-300 mb-2">Search</label>
+        <input v-model="filterSearch" type="text" placeholder="Search by name..."
+          class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-4 py-2.5 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors">
+      </div>
+
       <!-- Filters Panel (Collapsible) -->
       <ContactFilters :show="showFilters" :filters="filterData" :available-sources="availableSources"
         @update:filters="updateFilters" />
@@ -706,10 +713,6 @@ const handleQuickSend = async (messageData) => {
     return
   }
 
-  if (msg.platforms.includes('email') && !msg.subject.trim()) {
-    alert('Subject is required for email messages')
-    return
-  }
 
   try {
     // If sending now (not scheduled), send immediately
@@ -767,11 +770,6 @@ const handleQuickSendChain = async (chainData) => {
     return
   }
 
-  // Validate subject if email is selected
-  if (data.settings.platforms.includes('email') && !data.subject.trim()) {
-    alert('Subject is required when email is selected')
-    return
-  }
 
   // Validate that all messages have body
   if (data.messages.some(msg => !msg.body.trim())) {
@@ -1030,7 +1028,7 @@ const filteredContacts = computed(() => {
   }
 
   // Single pass through all contacts
-  return contactsList.filter(contact => {
+  const filtered = contactsList.filter(contact => {
     // Search filter
     if (hasSearch) {
       const name = contact.name?.toLowerCase() || ''
@@ -1127,6 +1125,13 @@ const filteredContacts = computed(() => {
 
     return true
   })
+
+  // Sort case-insensitively by name
+  return filtered.sort((a, b) => {
+    const nameA = (a.name || '').toLowerCase()
+    const nameB = (b.name || '').toLowerCase()
+    return nameA.localeCompare(nameB)
+  })
 })
 
 // Toggle favorite
@@ -1153,7 +1158,6 @@ const selectedContacts = computed(() => {
 const canSendBulkMessage = computed(() => {
   if (!bulkMessage.value.body.trim()) return false
   if (!bulkMessage.value.usePreferredPlatforms && bulkMessage.value.platforms.length === 0) return false
-  if ((bulkMessage.value.usePreferredPlatforms || bulkMessage.value.platforms.includes('email')) && !bulkMessage.value.subject.trim()) return false
   return selectedContacts.value.length > 0
 })
 

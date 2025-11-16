@@ -55,8 +55,8 @@
           </div>
 
           <div v-if="localMessage.usePreferredPlatforms || localMessage.platforms.includes('email')">
-            <label class="block text-xs font-light text-slate-300 mb-1">Subject *</label>
-            <input v-model="localMessage.subject" type="text" required
+            <label class="block text-xs font-light text-slate-300 mb-1">Subject (optional)</label>
+            <input v-model="localMessage.subject" type="text"
               class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors"
               placeholder="Hello {first_name}!" />
           </div>
@@ -148,7 +148,6 @@ watch(() => props.message, (newMessage) => {
 const canSend = computed(() => {
   if (!localMessage.value.body.trim()) return false
   if (!localMessage.value.usePreferredPlatforms && localMessage.value.platforms.length === 0) return false
-  if ((localMessage.value.usePreferredPlatforms || localMessage.value.platforms.includes('email')) && !localMessage.value.subject.trim()) return false
   return true
 })
 

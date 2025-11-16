@@ -142,6 +142,11 @@ class CampaignScheduler:
         if campaign.campaign_type == 'recurring' and campaign.subject_template:
             subject = self._replace_template_variables(campaign.subject_template, template_data, frequency_type)
 
+        # Process footer template if it exists (will be appended only for email)
+        footer_body = None
+        if campaign.footer_template:
+            footer_body = self._replace_template_variables(campaign.footer_template, template_data, frequency_type)
+
         # Determine platform and recipient
         # Handle both legacy string format and new array format
         import json
@@ -190,7 +195,11 @@ class CampaignScheduler:
         # Send the message
         try:
             if platform == 'email':
-                self._send_email(contact, message_body, subject=subject)
+                # Append footer to email messages if it exists
+                email_body = message_body
+                if footer_body:
+                    email_body = message_body + '\n\n' + footer_body
+                self._send_email(contact, email_body, subject=subject)
             elif platform == 'codementor':
                 self._send_codementor_message(contact, message_body)
             else:
@@ -446,18 +455,47 @@ class CampaignScheduler:
                 max_depth -= 1
                 prev_result = result
                 
-                # 1. Process gender conditionals
-                if gender == 'male':
-                    result = re.sub(r'\{if_male:([^}]+)\}', lambda m: process_recursive(m.group(1), max_depth), result)
-                    result = re.sub(r'\{if_female:([^}]+)\}', '', result)
-                elif gender == 'female':
-                    result = re.sub(r'\{if_female:([^}]+)\}', lambda m: process_recursive(m.group(1), max_depth), result)
-                    result = re.sub(r'\{if_male:([^}]+)\}', '', result)
-                else:
-                    result = re.sub(r'\{if_male:([^}]+)\}', '', result)
-                    result = re.sub(r'\{if_female:([^}]+)\}', '', result)
+                # 1. Process gender conditionals with proper nested brace handling
+                gender_conditionals = ['if_male', 'if_female']
+                for conditional in gender_conditionals:
+                    prefix = '{' + conditional + ':'
+                    search_pos = 0
+                    
+                    while True:
+                        start_pos = result.find(prefix, search_pos)
+                        if start_pos == -1:
+                            break
+                        
+                        # Find the matching closing brace
+                        depth = 0
+                        i = start_pos + len(prefix)
+                        found_end = False
+                        end_pos = -1
+                        
+                        while i < len(result):
+                            if result[i] == '{':
+                                depth += 1
+                            elif result[i] == '}':
+                                if depth == 0:
+                                    end_pos = i
+                                    found_end = True
+                                    break
+                                depth -= 1
+                            i += 1
+                        
+                        if found_end:
+                            content = result[start_pos + len(prefix):end_pos]
+                            replacement = ''
+                            if (conditional == 'if_male' and gender == 'male') or \
+                               (conditional == 'if_female' and gender == 'female'):
+                                replacement = process_recursive(content, max_depth)
+                            result = result[:start_pos] + replacement + result[end_pos + 1:]
+                            changed = True
+                            search_pos = start_pos + len(replacement)
+                        else:
+                            search_pos = start_pos + 1
                 
-                # 2. Process frequency conditionals
+                # 2. Process frequency conditionals with proper nested brace handling
                 if frequency_type:
                     frequency_conditionals = {
                         'daily': 'if_frequency_daily',
@@ -470,11 +508,42 @@ class CampaignScheduler:
                     current_freq_conditional = frequency_conditionals.get(frequency_type, None)
                     
                     for freq_type, conditional in frequency_conditionals.items():
-                        pattern = r'\{' + conditional + r':([^}]+)\}'
-                        if conditional == current_freq_conditional:
-                            result = re.sub(pattern, lambda m: process_recursive(m.group(1), max_depth), result)
-                        else:
-                            result = re.sub(pattern, '', result)
+                        prefix = '{' + conditional + ':'
+                        search_pos = 0
+                        
+                        while True:
+                            start_pos = result.find(prefix, search_pos)
+                            if start_pos == -1:
+                                break
+                            
+                            # Find the matching closing brace
+                            depth = 0
+                            i = start_pos + len(prefix)
+                            found_end = False
+                            end_pos = -1
+                            
+                            while i < len(result):
+                                if result[i] == '{':
+                                    depth += 1
+                                elif result[i] == '}':
+                                    if depth == 0:
+                                        end_pos = i
+                                        found_end = True
+                                        break
+                                    depth -= 1
+                                i += 1
+                            
+                            if found_end:
+                                content = result[start_pos + len(prefix):end_pos]
+                                if conditional == current_freq_conditional:
+                                    replacement = process_recursive(content, max_depth)
+                                else:
+                                    replacement = ''
+                                result = result[:start_pos] + replacement + result[end_pos + 1:]
+                                changed = True
+                                search_pos = start_pos + len(replacement)
+                            else:
+                                search_pos = start_pos + 1
                 
                 # 3. Process seasonal conditionals
                 season_conditionals = ['if_spring', 'if_summer', 'if_fall', 'if_winter']

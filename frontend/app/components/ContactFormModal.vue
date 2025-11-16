@@ -59,7 +59,7 @@
           </div>
 
           <div>
-            <PlatformMultiSelect v-model="formData.platform_preference" :available-platforms="availablePlatforms"
+            <PlatformMultiSelect v-model="formData.platform_preference" :available-platforms="computedAvailablePlatforms"
               label="Platform Preference" />
           </div>
 
@@ -130,6 +130,14 @@ const emit = defineEmits(['close', 'save'])
 
 const isEdit = computed(() => !!props.contact)
 
+// Compute available platforms based on form data (email and codementor_username)
+const computedAvailablePlatforms = computed(() => {
+  const platforms = []
+  if (formData.value.email) platforms.push('email')
+  if (formData.value.codementor_username) platforms.push('codementor')
+  return platforms
+})
+
 const formData = ref({
   name: '',
   preferred_name: '',
@@ -146,6 +154,23 @@ const formData = ref({
 watch(() => props.contact, (newContact) => {
   if (newContact) {
     formData.value = { ...newContact }
+    // Ensure platform_preference is always an array
+    if (!formData.value.platform_preference) {
+      formData.value.platform_preference = []
+    } else if (typeof formData.value.platform_preference === 'string') {
+      // Handle legacy string format
+      if (formData.value.platform_preference === 'both') {
+        formData.value.platform_preference = ['email', 'codementor'].filter(p => {
+          if (p === 'email') return !!newContact.email
+          if (p === 'codementor') return !!newContact.codementor_username
+          return false
+        })
+      } else {
+        formData.value.platform_preference = [formData.value.platform_preference]
+      }
+    } else if (!Array.isArray(formData.value.platform_preference)) {
+      formData.value.platform_preference = []
+    }
   } else {
     formData.value = {
       name: '',
@@ -183,6 +208,11 @@ watch(() => props.show, (newShow) => {
 })
 
 const handleSubmit = () => {
+  // Validate required fields
+  if (!formData.value.name || !formData.value.name.trim()) {
+    alert('Name is required')
+    return
+  }
   emit('save', { ...formData.value })
 }
 </script>

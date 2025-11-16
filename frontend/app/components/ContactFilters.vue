@@ -3,13 +3,6 @@
     <div v-show="show"
       class="bg-slate-800/50 backdrop-blur-sm rounded-xl sm:rounded-2xl shadow-xl border border-emerald-500/20 mb-4 overflow-hidden">
       <div class="p-4 sm:p-6">
-        <!-- Search Bar - Full Width -->
-        <div class="mb-4 sm:mb-6">
-          <label class="block text-sm font-light text-slate-300 mb-2">Search</label>
-          <input v-model="localFilters.search" type="text" placeholder="Search by name..."
-            class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-4 py-2.5 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors">
-        </div>
-
         <!-- Filter Grid -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
           <!-- Platform Filter -->

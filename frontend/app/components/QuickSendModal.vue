@@ -43,8 +43,8 @@
 
             <!-- Subject (only for email) -->
             <div v-if="message.platforms.includes('email')">
-              <label class="block text-sm font-light text-slate-300 mb-1">Subject *</label>
-              <input v-model="message.subject" type="text" required
+              <label class="block text-sm font-light text-slate-300 mb-1">Subject (optional)</label>
+              <input v-model="message.subject" type="text"
                 class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors"
                 placeholder="Message subject">
             </div>
@@ -97,8 +97,8 @@
             <!-- Global Chain Settings -->
             <!-- Subject (only for email) -->
             <div v-if="chainSettings.platforms.includes('email')">
-              <label class="block text-sm font-light text-slate-300 mb-1">Subject (applies to all messages) *</label>
-              <input v-model="chainSubject" type="text" required
+              <label class="block text-sm font-light text-slate-300 mb-1">Subject (applies to all messages, optional)</label>
+              <input v-model="chainSubject" type="text"
                 class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm focus:border-emerald-400 focus:outline-none transition-colors"
                 placeholder="Message subject">
             </div>

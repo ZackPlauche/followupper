@@ -1157,12 +1157,7 @@ class PlatformCredentialsViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Validate subject for email
-        if 'email' in valid_platforms and not subject:
-            return Response(
-                {'error': 'Subject is required for email messages'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # Subject is optional for email messages
 
         sent_platforms = []
         errors = []
@@ -1363,6 +1358,11 @@ class CampaignViewSet(viewsets.ModelViewSet):
         # Replace template variables
         message_body = scheduler._replace_template_variables(message_template, template_data, frequency_type)
         
+        # Process footer template if it exists (will be appended only for email)
+        footer_body = None
+        if campaign.footer_template:
+            footer_body = scheduler._replace_template_variables(campaign.footer_template, template_data, frequency_type)
+        
         # Get subject - for recurring campaigns, use subject_template if it exists
         # For sequence campaigns, subjects are per-step, so use default
         if campaign.campaign_type == 'recurring':
@@ -1420,7 +1420,11 @@ class CampaignViewSet(viewsets.ModelViewSet):
 
         # Send via email if requested
         if 'email' in valid_platforms:
-            success, msg_id, error = _send_email_message(contact, subject, message_body)
+            # Append footer to email messages if it exists
+            email_body = message_body
+            if footer_body:
+                email_body = message_body + '\n\n' + footer_body
+            success, msg_id, error = _send_email_message(contact, subject, email_body)
             if success:
                 sent_platforms.append('email')
                 email_message_id = msg_id
@@ -1442,11 +1446,20 @@ class CampaignViewSet(viewsets.ModelViewSet):
             )
 
         # Store in message history (marked as test)
-        message_record = _save_message_history(contact, subject, message_body, sent_platforms, email_message_id)
+        # Use the actual body sent (with footer for email)
+        body_for_history = message_body
+        if 'email' in sent_platforms and footer_body:
+            body_for_history = message_body + '\n\n' + footer_body
+        message_record = _save_message_history(contact, subject, body_for_history, sent_platforms, email_message_id)
 
         response_message = f'Test message sent via {", ".join(sent_platforms)}'
         if errors:
             response_message += f' (warnings: {"; ".join(errors)})'
+
+        # Preview should show the full message including footer for email
+        preview_body = message_body
+        if 'email' in valid_platforms and footer_body:
+            preview_body = message_body + '\n\n' + footer_body
 
         response_data = {
             'message': response_message,
@@ -1454,7 +1467,7 @@ class CampaignViewSet(viewsets.ModelViewSet):
             'errors': errors if errors else None,
             'preview': {
                 'subject': subject,
-                'body': message_body
+                'body': preview_body
             }
         }
 

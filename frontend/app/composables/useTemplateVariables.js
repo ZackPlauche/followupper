@@ -14,6 +14,212 @@ export const useTemplateVariables = () => {
    * @param {boolean} options.useSampleData - Use sample data instead of contact data (for previews)
    * @returns {string} - Text with variables replaced
    */
+  /**
+   * Helper function to extract content from conditional braces, handling nested braces
+   * @param {string} text - Text starting with a conditional
+   * @param {string} conditionalName - Name of the conditional (e.g., 'if_frequency_month')
+   * @returns {string|null} - The content inside the conditional, or null if not found
+   */
+  const extractConditionalContent = (text, conditionalName) => {
+    const prefix = `{${conditionalName}:`
+    if (!text.startsWith(prefix)) return null
+    
+    let depth = 0
+    let startPos = prefix.length
+    let i = startPos
+    
+    while (i < text.length) {
+      if (text[i] === '{') {
+        depth++
+      } else if (text[i] === '}') {
+        if (depth === 0) {
+          // Found the closing brace for our conditional
+          return text.substring(startPos, i)
+        }
+        depth--
+      }
+      i++
+    }
+    
+    return null // No closing brace found
+  }
+
+  /**
+   * Process conditionals recursively to handle nested braces
+   * @param {string} text - Text to process
+   * @param {Object} context - Context for conditionals (gender, frequencyType, etc.)
+   * @param {number} maxDepth - Maximum recursion depth
+   * @returns {string} - Processed text
+   */
+  const processConditionals = (text, context, maxDepth = 10) => {
+    if (maxDepth <= 0 || !text) return text
+    
+    let result = text
+    let changed = true
+    
+    // Process until no more changes (handles nested conditionals)
+    while (changed && maxDepth > 0) {
+      changed = false
+      maxDepth--
+      const prevResult = result
+      
+      // 1. Handle gender-based conditionals with proper nested brace handling
+      const gender = context.gender || ''
+      const genderConditionals = ['if_male', 'if_female']
+      
+      genderConditionals.forEach(conditional => {
+        const prefix = `{${conditional}:`
+        let searchPos = 0
+        
+        while (true) {
+          const startPos = result.indexOf(prefix, searchPos)
+          if (startPos === -1) break
+          
+          // Find the matching closing brace
+          let depth = 0
+          let i = startPos + prefix.length
+          let foundEnd = false
+          let endPos = -1
+          
+          while (i < result.length) {
+            if (result[i] === '{') {
+              depth++
+            } else if (result[i] === '}') {
+              if (depth === 0) {
+                endPos = i
+                foundEnd = true
+                break
+              }
+              depth--
+            }
+            i++
+          }
+          
+          if (foundEnd) {
+            const content = result.substring(startPos + prefix.length, endPos)
+            let replacement = ''
+            
+            if ((conditional === 'if_male' && gender === 'male') ||
+                (conditional === 'if_female' && gender === 'female')) {
+              replacement = processConditionals(content, context, maxDepth)
+            }
+            
+            result = result.substring(0, startPos) + replacement + result.substring(endPos + 1)
+            changed = true
+            searchPos = startPos + replacement.length
+          } else {
+            searchPos = startPos + 1
+          }
+        }
+      })
+
+      // 2. Handle frequency conditionals with proper nested brace handling
+      const frequencyType = context.frequencyType || null
+      if (frequencyType) {
+        const frequencyConditionals = {
+          'daily': 'if_frequency_daily',
+          'weekly': 'if_frequency_week',
+          'monthly': 'if_frequency_month',
+          'quarterly': 'if_frequency_quarter',
+          'yearly': 'if_frequency_year',
+          'custom': 'if_frequency_custom'
+        }
+        const currentConditional = frequencyConditionals[frequencyType]
+        
+        Object.values(frequencyConditionals).forEach(conditional => {
+          const prefix = `{${conditional}:`
+          let searchPos = 0
+          
+          while (true) {
+            const startPos = result.indexOf(prefix, searchPos)
+            if (startPos === -1) break
+            
+            // Find the matching closing brace
+            let depth = 0
+            let i = startPos + prefix.length
+            let foundEnd = false
+            let endPos = -1
+            
+            while (i < result.length) {
+              if (result[i] === '{') {
+                depth++
+              } else if (result[i] === '}') {
+                if (depth === 0) {
+                  endPos = i
+                  foundEnd = true
+                  break
+                }
+                depth--
+              }
+              i++
+            }
+            
+            if (foundEnd) {
+              const content = result.substring(startPos + prefix.length, endPos)
+              const replacement = conditional === currentConditional 
+                ? processConditionals(content, context, maxDepth)
+                : ''
+              result = result.substring(0, startPos) + replacement + result.substring(endPos + 1)
+              changed = true
+              searchPos = startPos + replacement.length
+            } else {
+              searchPos = startPos + 1
+            }
+          }
+        })
+      } else {
+        // Remove all frequency conditionals if no frequency context
+        const frequencyConditionals = [
+          'if_frequency_daily', 'if_frequency_week', 'if_frequency_month',
+          'if_frequency_quarter', 'if_frequency_year', 'if_frequency_custom'
+        ]
+        frequencyConditionals.forEach(conditional => {
+          const prefix = `{${conditional}:`
+          let searchPos = 0
+          
+          while (true) {
+            const startPos = result.indexOf(prefix, searchPos)
+            if (startPos === -1) break
+            
+            // Find the matching closing brace
+            let depth = 0
+            let i = startPos + prefix.length
+            let foundEnd = false
+            let endPos = -1
+            
+            while (i < result.length) {
+              if (result[i] === '{') {
+                depth++
+              } else if (result[i] === '}') {
+                if (depth === 0) {
+                  endPos = i
+                  foundEnd = true
+                  break
+                }
+                depth--
+              }
+              i++
+            }
+            
+            if (foundEnd) {
+              result = result.substring(0, startPos) + result.substring(endPos + 1)
+              changed = true
+              searchPos = startPos
+            } else {
+              searchPos = startPos + 1
+            }
+          }
+        })
+      }
+      
+      if (result === prevResult) {
+        changed = false
+      }
+    }
+    
+    return result
+  }
+
   const replaceTemplateVariables = (text, options = {}) => {
     if (!text) return ''
 
@@ -46,50 +252,14 @@ export const useTemplateVariables = () => {
     const preferredName = contactData.preferred_name || firstName
     const gender = contactData.gender || ''
 
-    let result = text
-
-    // 1. Handle gender-based conditionals
-    if (gender === 'male') {
-      result = result.replace(/\{if_male:([^}]+)\}/g, '$1')
-      result = result.replace(/\{if_female:([^}]+)\}/g, '')
-    } else if (gender === 'female') {
-      result = result.replace(/\{if_female:([^}]+)\}/g, '$1')
-      result = result.replace(/\{if_male:([^}]+)\}/g, '')
-    } else {
-      result = result.replace(/\{if_male:([^}]+)\}/g, '')
-      result = result.replace(/\{if_female:([^}]+)\}/g, '')
+    // Build context for conditional processing
+    const context = {
+      gender,
+      frequencyType
     }
 
-    // 2. Handle frequency conditionals
-    if (frequencyType) {
-      const frequencyConditionals = {
-        'daily': 'if_frequency_daily',
-        'weekly': 'if_frequency_week',
-        'monthly': 'if_frequency_month',
-        'quarterly': 'if_frequency_quarter',
-        'yearly': 'if_frequency_year',
-        'custom': 'if_frequency_custom'
-      }
-      const currentConditional = frequencyConditionals[frequencyType]
-      
-      Object.values(frequencyConditionals).forEach(conditional => {
-        const pattern = new RegExp(`\\{${conditional}:([^}]+)\\}`, 'g')
-        if (conditional === currentConditional) {
-          result = result.replace(pattern, '$1')
-        } else {
-          result = result.replace(pattern, '')
-        }
-      })
-    } else {
-      // Remove all frequency conditionals if no frequency context
-      const frequencyConditionals = [
-        'if_frequency_daily', 'if_frequency_week', 'if_frequency_month',
-        'if_frequency_quarter', 'if_frequency_year', 'if_frequency_custom'
-      ]
-      frequencyConditionals.forEach(conditional => {
-        result = result.replace(new RegExp(`\\{${conditional}:([^}]+)\\}`, 'g'), '')
-      })
-    }
+    // Process conditionals first (handles nested braces)
+    let result = processConditionals(text, context)
 
     // 3. Determine current season and holiday
     const now = new Date()

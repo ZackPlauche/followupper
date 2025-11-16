@@ -162,6 +162,7 @@ class Campaign(models.Model):
     timezone = models.CharField(max_length=50, default="UTC")
     message_template = models.TextField(blank=True)
     subject_template = models.CharField(max_length=500, blank=True, help_text="Subject template for recurring campaigns (supports template variables)")
+    footer_template = models.TextField(blank=True, help_text="Footer/signature template for recurring campaigns (supports template variables, email only)")
     start_immediately = models.CharField(max_length=20, default="scheduled")
     total_steps = models.IntegerField(default=0)
     total_duration_days = models.IntegerField(default=0)

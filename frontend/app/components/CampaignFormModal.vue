@@ -141,6 +141,16 @@
 
           <div v-if="localCampaign.campaign_type === 'recurring'">
             <div>
+              <label class="block text-xs font-light text-slate-300 mb-1">Template (optional)</label>
+              <select v-model="selectedTemplate" @change="handleTemplateChange"
+                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors [&>option]:bg-slate-700 [&>option]:text-slate-100">
+                <option value="">None</option>
+                <option v-for="template in templates" :key="template.id" :value="template.id">{{ template.name }}
+                </option>
+              </select>
+            </div>
+
+            <div>
               <label class="block text-xs font-light text-slate-300 mb-1">Subject Template (Optional)</label>
               <input v-model="localCampaign.subject_template" type="text"
                 class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors"
@@ -153,6 +163,14 @@
               <textarea v-model="localCampaign.message_template" rows="8" required
                 class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors resize-none"
                 placeholder="Hi {first_name},&#10;&#10;This is your {frequency} check-in message.&#10;&#10;Hope you're doing well!&#10;&#10;Best regards"></textarea>
+            </div>
+
+            <div>
+              <label class="block text-xs font-light text-slate-300 mb-1">Footer/Signature Template (Email only, Optional)</label>
+              <textarea v-model="localCampaign.footer_template" rows="3"
+                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors resize-none"
+                placeholder="Best regards,&#10;Your Name"></textarea>
+              <p class="text-xs text-slate-400 mt-1">Supports template variables like {name}, {first_name}, etc.</p>
             </div>
           </div>
 
@@ -253,6 +271,10 @@
               <div v-else class="text-sm text-slate-500 italic">
                 (No message template yet)
               </div>
+              <!-- Footer Preview -->
+              <div v-if="localCampaign.footer_template" class="text-sm text-slate-300 whitespace-pre-wrap mt-4 pt-4 border-t border-slate-600/30">
+                {{ previewFooter }}
+              </div>
             </div>
 
             <!-- User Data Section -->
@@ -341,6 +363,10 @@ const props = defineProps({
   isEdit: {
     type: Boolean,
     default: false
+  },
+  templates: {
+    type: Array,
+    default: () => []
   }
 })
 
@@ -356,13 +382,32 @@ const localCampaign = ref({
   send_day: '1',
   send_time: '09:00',
   timezone: 'contact',
-  message_template: '',
-  subject_template: '',
-  steps: [],
-  start_immediately: 'scheduled',
-  ...props.campaign 
-})
+      message_template: '',
+      subject_template: '',
+      footer_template: '',
+      steps: [],
+      start_immediately: 'scheduled',
+      ...props.campaign 
+    })
 const yearlyDateInput = ref('')
+const selectedTemplate = ref('')
+
+const handleTemplateChange = () => {
+  if (selectedTemplate.value) {
+    const template = props.templates.find(t => t.id === parseInt(selectedTemplate.value))
+    if (template) {
+      if (template.subject) {
+        localCampaign.value.subject_template = template.subject
+      }
+      if (template.body) {
+        localCampaign.value.message_template = template.body
+      }
+      if (template.footer) {
+        localCampaign.value.footer_template = template.footer
+      }
+    }
+  }
+}
 
 watch(() => props.campaign, (newCampaign) => {
   if (newCampaign) {
@@ -378,6 +423,7 @@ watch(() => props.campaign, (newCampaign) => {
       timezone: 'contact',
       message_template: '',
       subject_template: '',
+      footer_template: '',
       steps: [],
       start_immediately: 'scheduled',
       ...newCampaign
@@ -499,6 +545,11 @@ const previewSubject = computed(() => {
 const previewMessage = computed(() => {
   if (!localCampaign.value.message_template) return ''
   return previewStepText(localCampaign.value.message_template, 0)
+})
+
+const previewFooter = computed(() => {
+  if (!localCampaign.value.footer_template) return ''
+  return previewStepText(localCampaign.value.footer_template, 0)
 })
 
 const { replaceTemplateVariables } = useTemplateVariables()

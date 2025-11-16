@@ -151,7 +151,6 @@
                     <button @click="openContactProfile(assignment.contact)"
                       class="text-left hover:text-emerald-400 transition-colors cursor-pointer">
                       <div class="font-medium">{{ assignment.contact_name || 'Unknown' }}</div>
-                      <div class="text-xs text-slate-400">{{ assignment.contact_email || '' }}</div>
                     </button>
                   </td>
                   <td class="px-4 py-2">
@@ -294,6 +293,7 @@
       :show="showCreateCampaignForm || showEditCampaignForm"
       :campaign="newCampaign"
       :is-edit="!!editingCampaign"
+      :templates="templates"
       @close="closeCampaignModal"
       @save="handleSaveCampaign"
     />
@@ -339,19 +339,26 @@
         <!-- Content -->
         <div class="flex-1 overflow-y-auto p-4 sm:p-6 min-h-0">
           <div class="space-y-4">
+            <!-- Search Bar -->
+            <div>
+              <label class="block text-xs font-light text-slate-300 mb-2">Search Contacts</label>
+              <input v-model="testContactSearch" type="text" placeholder="Search by name, email, or username..."
+                class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm placeholder-slate-400 focus:border-emerald-400 focus:outline-none transition-colors">
+            </div>
+
             <div>
               <label class="block text-xs font-light text-slate-300 mb-2">Select Contact</label>
               <select v-model="testContactId"
                 class="w-full bg-slate-700/50 border border-emerald-500/30 rounded-lg px-3 py-2 text-slate-100 text-sm focus:border-emerald-400 focus:outline-none transition-colors">
                 <option value="">-- Select a contact --</option>
-                <option v-for="contact in availableTestContacts" :key="contact.id" :value="contact.id">
+                <option v-for="contact in filteredTestContacts" :key="contact.id" :value="contact.id">
                   {{ contact.name }} ({{ contact.email || contact.codementor_username || 'No contact info' }})
                 </option>
               </select>
             </div>
 
             <div v-if="testContactId">
-              <label class="block text-xs font-light text-slate-300 mb-2">Platforms</label>
+              <label class="block text-xs font-light text-slate-300 mb-2">Platforms (using contact's preferred platforms)</label>
               <div class="space-y-2">
                 <label class="flex items-center space-x-2">
                   <input type="checkbox" v-model="testPlatforms" value="email"
@@ -386,7 +393,7 @@
             class="flex-1 bg-slate-600/50 text-slate-300 px-4 py-3 rounded-xl font-light hover:bg-slate-600/70 transition-colors">
             Close
           </button>
-          <button @click="handleTestMessage" :disabled="!testContactId || (!testUsePreferredPlatforms && testPlatforms.length === 0) || testSending"
+          <button @click="handleTestMessage" :disabled="!testContactId || testPlatforms.length === 0 || testSending"
             class="flex-1 bg-gradient-to-r from-blue-500 to-cyan-500 text-white px-4 py-3 rounded-xl font-light hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
             Send Test
           </button>
@@ -670,7 +677,7 @@ const customMessageCampaign = ref(null)
 const customMessageText = ref('')
 const sendNowConfirmAssignment = ref(null)
 const sendNowConfirmCampaignId = ref(null)
-const testUsePreferredPlatforms = ref(false)
+const testUsePreferredPlatforms = ref(true)
 const selectedAssignmentIds = ref({}) // { campaignId: Set<assignmentId> }
 const showTestMessageModal = ref(false)
 const testCampaign = ref(null)
@@ -678,6 +685,7 @@ const testContactId = ref('')
 const testPlatforms = ref([])
 const testSending = ref(false)
 const testResult = ref(null)
+const testContactSearch = ref('')
 const showBulkEditModal = ref(false)
 const bulkEditCampaign = ref(null)
 const bulkEditStatus = ref(null)
@@ -847,6 +855,8 @@ const closeCampaignModal = () => {
     send_time: '09:00',
     timezone: 'contact',
     message_template: '',
+    subject_template: '',
+    footer_template: '',
     start_immediately: 'scheduled',
     steps: []
   }
@@ -866,6 +876,7 @@ const editCampaign = (campaign) => {
     timezone: campaign.timezone || 'contact',
     message_template: campaign.message_template || '',
     subject_template: campaign.subject_template || '',
+    footer_template: campaign.footer_template || '',
     start_immediately: campaign.start_immediately || 'scheduled',
     steps: (campaign.steps || []).map(step => ({
       subject: step.subject || '',
@@ -1392,10 +1403,32 @@ const closeTestMessageModal = () => {
   testContactId.value = ''
   testPlatforms.value = []
   testResult.value = null
+  testContactSearch.value = ''
 }
 
 const availableTestContacts = computed(() => {
   return contacts.value.filter(c => c.email || c.codementor_username)
+})
+
+const filteredTestContacts = computed(() => {
+  let result
+  if (!testContactSearch.value.trim()) {
+    result = [...availableTestContacts.value]
+  } else {
+    const query = testContactSearch.value.toLowerCase().trim()
+    result = availableTestContacts.value.filter(contact => {
+      const name = (contact.name || '').toLowerCase()
+      const email = (contact.email || '').toLowerCase()
+      const codementor = (contact.codementor_username || '').toLowerCase()
+      return name.includes(query) || email.includes(query) || codementor.includes(query)
+    })
+  }
+  // Sort alphabetically by name, case-insensitive
+  return result.sort((a, b) => {
+    const nameA = (a.name || '').toLowerCase()
+    const nameB = (b.name || '').toLowerCase()
+    return nameA.localeCompare(nameB)
+  })
 })
 
 const selectedTestContact = computed(() => {
@@ -1405,28 +1438,32 @@ const selectedTestContact = computed(() => {
 
 watch(() => selectedTestContact.value, (contact) => {
   if (contact) {
-    if (testUsePreferredPlatforms.value) {
-      // Use contact's preferred platforms
-      const preference = contact.platform_preference || []
-      testPlatforms.value = Array.isArray(preference) ? [...preference] : (preference === 'both' ? ['email', 'codementor'] : [preference || 'email'])
+    // Always use contact's preferred platforms by default
+    const preference = contact.platform_preference || []
+    if (Array.isArray(preference) && preference.length > 0) {
+      // Filter to only include platforms the contact actually has
+      testPlatforms.value = preference.filter(p => {
+        if (p === 'email') return !!contact.email
+        if (p === 'codementor') return !!contact.codementor_username
+        return false
+      })
+    } else if (preference === 'both') {
+      testPlatforms.value = []
+      if (contact.email) testPlatforms.value.push('email')
+      if (contact.codementor_username) testPlatforms.value.push('codementor')
+    } else if (preference) {
+      // Single platform preference
+      testPlatforms.value = []
+      if (preference === 'email' && contact.email) testPlatforms.value.push('email')
+      if (preference === 'codementor' && contact.codementor_username) testPlatforms.value.push('codementor')
     } else {
+      // No preference set, default to available platforms
       testPlatforms.value = []
       if (contact.email) testPlatforms.value.push('email')
       if (contact.codementor_username) testPlatforms.value.push('codementor')
     }
-  }
-})
-
-watch(() => testUsePreferredPlatforms.value, (usePreferred) => {
-  if (selectedTestContact.value) {
-    if (usePreferred) {
-      const preference = selectedTestContact.value.platform_preference || []
-      testPlatforms.value = Array.isArray(preference) ? [...preference] : (preference === 'both' ? ['email', 'codementor'] : [preference || 'email'])
-    } else {
-      testPlatforms.value = []
-      if (selectedTestContact.value.email) testPlatforms.value.push('email')
-      if (selectedTestContact.value.codementor_username) testPlatforms.value.push('codementor')
-    }
+    // Ensure we're using preferred platforms
+    testUsePreferredPlatforms.value = true
   }
 })
 
@@ -1593,12 +1630,8 @@ const handleSendNow = async () => {
 const handleTestMessage = async () => {
   if (!testContactId.value || !testCampaign.value) return
   
-  // If using preferred platforms, get them from contact
-  let platformsToSend = testPlatforms.value
-  if (testUsePreferredPlatforms.value && selectedTestContact.value) {
-    const preference = selectedTestContact.value.platform_preference || []
-    platformsToSend = Array.isArray(preference) ? [...preference] : (preference === 'both' ? ['email', 'codementor'] : [preference || 'email'])
-  }
+  // Use the platforms that were set from the contact's preferences
+  const platformsToSend = testPlatforms.value
   
   if (platformsToSend.length === 0) return
 
