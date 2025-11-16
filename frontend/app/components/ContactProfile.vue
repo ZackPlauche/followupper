@@ -9,8 +9,6 @@
         <div class="flex items-start sm:items-center justify-between gap-4">
           <div class="flex-1 min-w-0">
             <h3 class="text-xl sm:text-2xl font-thin text-slate-100 mb-1 break-words">{{ contact.name }}</h3>
-            <p class="text-slate-400 text-xs sm:text-sm break-words">{{ contact.email || contact.codementor_username || 'No contact info' }}
-            </p>
             <div class="flex flex-wrap items-center gap-2 sm:gap-3 mt-2">
               <p v-if="editingContact.timezone || contact.timezone" class="text-slate-500 text-xs">
                 <Icon name="lucide:clock" class="w-3 h-3 inline mr-1" />
